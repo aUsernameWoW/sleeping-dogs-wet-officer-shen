@@ -1,0 +1,6 @@
+{
+  "venvPath": "../../../tools/extract/build",
+  "venv": "venv",
+  "extraPaths": [".", "../../../tools/extract"],
+  "ignore": ["renderdoc"]
+}

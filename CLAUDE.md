@@ -5,8 +5,9 @@ most clothes and skin don't look wet; only a few items (and hair) do, and script
 Local-only so far; the planned public repo name is `sleeping-dogs-wet-officer-shen` (the user's choice).
 
 Status (2026-09-26): both fixes verified in game by the user ("working as expected"): wet in the rain, drying
-over ~60 s after it stops; wet right after climbing out of the water, drying the same way. Not yet done:
-tuning Shine/Gloss in daylight, README/ADVANCED, `.github` CI, publishing.
+over ~60 s after it stops; wet right after climbing out of the water, drying the same way. README.md
+(players) and ADVANCED.md are written; their download/issue links point at the planned repo and only work
+once it's published. See **Handoff** at the end for what's left.
 
 Two independent bugs:
 1. **Invisible wetness** (rain and swimming): the specular maps have no wet mask → `core/dxbc.cc` shader patch.
@@ -68,11 +69,42 @@ Two independent bugs:
   exactly the 28 `_WS` character permutations patched, each accepted by D3D11.
 - `load_test`: loads the .asi outside the game.
 
-## Tooling used for the investigation (session scratchpad, not in the repo yet)
+## Research tools (`research\`, see its README.md)
 
-qrenderdoc `--python` scripts (character draws with their permutation and Mask, G-buffer export, replaying
-a capture with patched shaders per variant), a shader unpacker (DXBC blobs are stored raw in
-`shaders.temp.bin` after an `Illusion.ShaderBinary` header), a Material chunk parser (`0xF5F8516F`, params of
-0x38 bytes: state name/type hashes, resource name/type at +0x28/+0x30), and a specular-map channel survey.
-Promote them into `tools\` if they're needed again. RenderDoc launches need `steam_appid.txt` (307690) in the
-game folder, which was added for this and should be removed when done.
+Everything the findings above came from, runnable again: `shaders.py` (unpack `shaders.temp.bin`, bindings,
+cbuffer layouts, which permutations read Mask, patched variants), `dxbc.py`/`patch.py` (Python originals of
+`core/dxbc.cc`; byte-identical output), `materials.py` (material → shader template), `specsurvey.py` (wet
+masks in specular maps), `sigcheck.py` (signature uniqueness in both builds), and `renderdoc.ps1` +
+`renderdoc\*.py` (launch the game under RenderDoc; per-draw permutation/wetness report, presented frame,
+G-buffer targets, and **offline previews**: re-render a capture with the original / default / stronger
+shaders, the fastest way to tune `Shine`/`Gloss`). Output goes to `build\research\` (gitignored game data).
+
+How findings were made, for similar work: RenderDoc report on a wet frame (Mask.z per draw, permutation by
+checksum) → G-buffer comparison dry vs wet (lighting-independent) → shader formula from `fxc /dumpbin` →
+spec map survey → offline preview of candidate patches → in-game test. For CPU-side questions (why swimming
+didn't wet), a diagnostic hook that logs the look component's wetness every frame and any change made outside
+its Update found that the task never wrote it, then a one-time dump of the component array showed the type.
+
+## Testing in game
+
+The user tests and reports; `tools\build.ps1 -Mod SDWet -Test -Deploy` puts the build in place (not while
+the game runs). Quick checks: F6 (SDAtmos' debug key) forces rain; wetness reaches 1 in ~12 s outdoors (not
+in vehicles, not under cover, needs sky irradiance > 0.2) and dries in 60 s. For swimming, jump into the sea
+anywhere along the harbour. `LogWetnessTracks = 1` in the user's ini logs the tracks and a wetness curve.
+Night scenes show the effect weakly (few highlights); judge `Shine`/`Gloss` in daylight or under street lights.
+
+## Handoff: what's left (as of 2026-09-26)
+
+- **Tune `Shine`/`Gloss`** in daylight with the user (defaults 0.05/0.10; 0.10/0.20 already looks plastic on
+  the vest). Use `research\renderdoc.ps1 preview` on a daylight capture before asking for game restarts.
+  Maybe also darken more (the shader darkens by `0.35 × w × (1 − gloss)`, so more gloss means less
+  darkening); that would be a second patch on the `mad ..., l(0.35...)` instruction.
+- **CI**: copy `.github\` from SDAtmos (build.yml, reference.env with MinHook only, asi-loader.env,
+  dependabot, reference.yml, asi-loader.yml, nexus-release.yml); `game_shaders_test` skips there.
+- **Publish** as `aUsernameWoW/sleeping-dogs-wet-officer-shen` only when the user says so (outward-facing).
+  Add screenshots (before/after in daylight) to README.md then.
+- **Clean up** when tuning is done: `steam_appid.txt` in the game folder (added for RenderDoc launches), the
+  user's `plugins\SDWet.ini` has `LogWetnessTracks = 1` (theirs; leave it unless asked), captures in
+  `build\research\captures\`.
+- Not investigated: sweat (no sweat track fired in testing; the shader uses `max(wet, sweat)`), NPCs'
+  swimming (likely the same registration bug), `DisableSelfIlluminationTask` (same lookup).
