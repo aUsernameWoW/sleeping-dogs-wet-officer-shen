@@ -2,7 +2,8 @@
 
 namespace wetness
 {
-	// Logs every ApplyWetnessOrSweatTask the action trees start: what sweat and wetness they set, on whom.
-	// Diagnostics for the swimming case (the character comes out of the water dry).
+	// Makes the action trees' ApplyWetnessOrSweatTrack (swimming, umbrellas, scripted scenes) reach the
+	// character again: the game's own component lookup misses the player's CharacterLookComponent.
+	// With LogWetnessTracks it also logs each track and the player's wetness afterwards.
 	void Install();
 }

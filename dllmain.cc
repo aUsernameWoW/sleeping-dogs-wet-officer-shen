@@ -39,8 +39,8 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, LPVOID)
 			logger::Open(dir + L"\\SDWet.log");
 		}
 
-		LOG("SDWet loaded (WetLook=%d Shine=%.3f Gloss=%.3f LogWetnessTracks=%d)", gConfig.mWetLook, gConfig.mShine, gConfig.mGloss,
-			gConfig.mLogWetnessTracks);
+		LOG("SDWet loaded (WetLook=%d Shine=%.3f Gloss=%.3f ActionWetness=%d LogWetnessTracks=%d)", gConfig.mWetLook, gConfig.mShine,
+			gConfig.mGloss, gConfig.mActionWetness, gConfig.mLogWetnessTracks);
 
 		// Before the game's main runs (the ASI loader loads us from dinput8.dll, a static import), so the
 		// shader hook is in place before data\shaders\shaders.temp.bin is loaded.

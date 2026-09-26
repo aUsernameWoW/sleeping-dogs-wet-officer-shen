@@ -29,13 +29,17 @@ namespace config
 		"; 额外的湿润光泽。 / Extra wet gloss.\n"
 		"Gloss = 0.10\n"
 		"\n"
+		"; 游泳上岸后湿透、打伞后变干（游戏本来就有这些动作，但 DE 里它们找不到角色，所以没效果）。\n"
+		"; Wet after swimming, dried under an umbrella: the game's own actions, which miss the character in the DE.\n"
+		"ActionWetness = 1\n"
+		"\n"
 		"[Debug]\n"
 		"; 在 .asi 旁边写 SDWet.log。 / Write SDWet.log.\n"
 		"Logging = 1\n"
 		"\n"
 		"; 把游戏设置湿度/汗水的动作（游泳、打伞、剧情）写进日志。\n"
 		"; Log the actions that set wetness or sweat (swimming, umbrellas, scripted scenes).\n"
-		"LogWetnessTracks = 1\n";
+		"LogWetnessTracks = 0\n";
 
 	static std::wstring ReadString(const wchar_t* section, const wchar_t* key)
 	{
@@ -74,6 +78,7 @@ namespace config
 		gConfig.mWetLook = ReadBool(L"Wet", L"WetLook", gConfig.mWetLook);
 		gConfig.mShine = ReadFloat(L"Wet", L"Shine", gConfig.mShine);
 		gConfig.mGloss = ReadFloat(L"Wet", L"Gloss", gConfig.mGloss);
+		gConfig.mActionWetness = ReadBool(L"Wet", L"ActionWetness", gConfig.mActionWetness);
 		gConfig.mLogging = ReadBool(L"Debug", L"Logging", gConfig.mLogging);
 		gConfig.mLogWetnessTracks = ReadBool(L"Debug", L"LogWetnessTracks", gConfig.mLogWetnessTracks);
 	}

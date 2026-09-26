@@ -4,6 +4,18 @@ Fixes PCGamingWiki's "Wetness Bug on default and many other outfits": in the rai
 most clothes and skin don't look wet; only a few items (and hair) do, and scripted rainy missions look right.
 Local-only so far; the planned public repo name is `sleeping-dogs-wet-officer-shen` (the user's choice).
 
+Status (2026-09-26): both fixes verified in game by the user ("working as expected"): wet in the rain, drying
+over ~60 s after it stops; wet right after climbing out of the water, drying the same way. Not yet done:
+tuning Shine/Gloss in daylight, README/ADVANCED, `.github` CI, publishing.
+
+Two independent bugs:
+1. **Invisible wetness** (rain and swimming): the specular maps have no wet mask → `core/dxbc.cc` shader patch.
+2. **Swimming never sets wetness**: the player's look component is registered in its sim object's component
+   array as `0xCC000001` (CompositeLookComponent), but `ApplyWetnessOrSweatTask` looks for `0xCC000005`
+   (CharacterLookComponent::_TypeUID), so its lookup returns null and it writes nothing (log, installed build:
+   component #51 of 63, fixed table 49, flags 0x4001) → `core/wetness.cc`. `DisableSelfIlluminationTask`
+   does the same lookup and is probably broken on the player too (not looked into).
+
 ## How the game does wetness (legacy addresses, see the workspace CLAUDE.md for the builds)
 
 - `UFG::CharacterLookComponent` (+0xB8 `mSweatLevel`, +0xBC `mWetnessLevel`). `Update` (0x14058d600, its
@@ -22,10 +34,14 @@ Local-only so far; the planned public repo name is `sleeping-dogs-wet-officer-sh
   1/62 tops, 1/46 pants (`P_SLACKS`), 2/34 shoes, `WEI_ARMS_S`, `WEI_HEAD_S` (lips only) vs 78/87 hair maps.
   Wet, those only get the weak fallback term. All 2042 character materials use the `HK_CHARACTER*` shaders
   (the `CHARACTER_*` / `UBERSHADER_*` uber shaders in `shaders.temp.bin` are used by no character).
-- **Swimming**: after climbing out of the water Mask.z stayed 0 (capture). `ApplyWetnessOrSweatTrack`
-  (`mSweatLevel` +0x38, `mWetnessLevel` +0x3C, -1 = leave as is; `ApplyWetnessOrSweatTask::Begin`
-  0x1403ff1d0 writes them, `End` resets sweat to -1) sits on many `Swimming\...` action nodes and on
-  `Umbrella\Cycle\DryMeOff!`. Which values the DE data has is what the `LogWetnessTracks` hook finds out.
+- **Swimming**: `ApplyWetnessOrSweatTrack` (`mSweatLevel` +0x38, `mWetnessLevel` +0x3C, -1 = leave as is)
+  sits on many `Swimming\...` action nodes and on `Umbrella\Cycle\DryMeOff!`; the swim tracks carry
+  sweat -1, wetness 1.0. `ApplyWetnessOrSweatTask` Begin 0x1403ff1d0 / Update 0x140401b70 copy them into the
+  look component (+0xB8 / +0xBC), End 0x1404004f0 resets sweat to -1 if the track set it. The task keeps its
+  ActionContext at +0x28 (sim object at context +0x10). Component lookups: `SimObjectGame::GetComponentOfTypeHK`
+  searches `m_Components` (size +0x60, 16-byte holders {component, type UID} at +0x68) from
+  `mComponentTableEntryCount` (+0x80) on, `SimObject::GetComponentOfType` from 0; a holder matches if the high
+  7 bits are equal and it has all the wanted low bits. Neither finds the player's look (see bug 2 above).
 
 ## What the mod does
 
@@ -37,8 +53,12 @@ Local-only so far; the planned public repo name is `sleeping-dogs-wet-officer-sh
   `add/lt/movc`: where spec.x + spec.z < 0.004, use (`Shine`, `Gloss`) from `SDWet.ini`. Adds one temp,
   fixes chunk sizes, STAT counts and the DXBC checksum (MD5 variant; verified on all 2237 game shaders).
   Token encodings were taken from an fxc-compiled reference (the WDK's tokenized-format header isn't here).
-- `core/wetness.cc` logs every `ApplyWetnessOrSweatTask::Begin` (whole-function signature: its prologue
-  matches 18 other tasks).
+- `core/wetness.cc` hooks `ApplyWetnessOrSweatTask` Begin/Update/End (whole-function signatures: their
+  prologues match 18 other tasks) and `CharacterLookComponent::Update` (its `this` is the component + 0x48).
+  The task hooks queue the track's values per sim object; the look's Update applies them to itself before
+  running, so nothing is looked up by type and no component pointer outlives a frame. Queued values expire
+  after 2 s. `ActionWetness` switches it; `LogWetnessTracks` (default 0) logs tracks and the wetness curve.
+  The first track applied to each sim object is always logged with its component registration.
 
 ## Tests
 

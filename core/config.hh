@@ -11,10 +11,14 @@ struct Config
 	float mShine = 0.05f;
 	float mGloss = 0.10f;
 
+	// Let the action trees' wetness tracks reach the character (wet after swimming; see core/wetness.cc).
+	bool mActionWetness = true;
+
 	bool mLogging = true;
 
-	// Log every ApplyWetnessOrSweatTrack the action trees run (swimming, umbrellas, scripted scenes).
-	bool mLogWetnessTracks = true;
+	// Log every ApplyWetnessOrSweatTrack the action trees run (swimming, umbrellas, scripted scenes) and the
+	// wetness of the character it was on.
+	bool mLogWetnessTracks = false;
 };
 
 extern Config gConfig;

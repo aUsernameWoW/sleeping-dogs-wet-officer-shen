@@ -28,7 +28,6 @@ namespace shaders
 	static SRWLOCK gLock = SRWLOCK_INIT;
 	// Patched copies by the original's checksum. Never freed: the StageShader holds on to the bytecode.
 	static std::map<std::array<uint8_t, 16>, std::vector<uint8_t>> gPatched;
-	static int gFailed = 0;
 
 	static const std::vector<uint8_t>* Patched(const void* bin, uint32_t size)
 	{
@@ -53,7 +52,6 @@ namespace shaders
 				result = &(gPatched[key] = std::move(out));
 				break;
 			case dxbc::Result::Failed:
-				++gFailed;
 				LOG("shaders: wet/sweat pixel shader left as is: %s", why.c_str());
 				break;
 			case dxbc::Result::NotWet:
