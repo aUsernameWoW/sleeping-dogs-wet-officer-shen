@@ -29,16 +29,27 @@ namespace config
 		"; 额外的湿润光泽。 / Extra wet gloss.\n"
 		"Gloss = 0.10\n"
 		"\n"
-		"; 游泳上岸后湿透、打伞后变干（游戏本来就有这些动作，但 DE 里它们找不到角色，所以没效果）。\n"
-		"; Wet after swimming, dried under an umbrella: the game's own actions, which miss the character in the DE.\n"
+		"; 游泳上岸后湿透（游戏本来就有这个动作，但 DE 里它找不到 Wei，所以没效果）。\n"
+		"; Wet after swimming: the game's own action, which misses Wei in the DE.\n"
 		"ActionWetness = 1\n"
+		"\n"
+		"; 游泳上岸后留湿脚印的秒数（身体变干的头这么多秒），0 = 关闭。需要 ActionWetness = 1。\n"
+		"; Seconds of wet footprints after climbing out of the water (the first part of drying off), 0 = off.\n"
+		"; Needs ActionWetness = 1.\n"
+		"WetFootprints = 25\n"
+		"\n"
+		"[Umbrella]\n"
+		"; 撑伞原型（测试中，1 = 开启）：手里拿着伞时，F7 撑开/收起（撑伞时只能走，按住 Shift 快走），F9 把状态写进日志。\n"
+		"; Umbrella prototype (testing, 1 = on): with an umbrella in hand, F7 opens/closes it (walking only while it's\n"
+		"; open, hold Shift for a brisk walk), F9 logs the state.\n"
+		"Prototype = 0\n"
 		"\n"
 		"[Debug]\n"
 		"; 在 .asi 旁边写 SDWet.log。 / Write SDWet.log.\n"
 		"Logging = 1\n"
 		"\n"
-		"; 把游戏设置湿度/汗水的动作（游泳、打伞、剧情）写进日志。\n"
-		"; Log the actions that set wetness or sweat (swimming, umbrellas, scripted scenes).\n"
+		"; 把游戏设置湿度/汗水的动作（游泳、过场动画、路人撑伞）写进日志。\n"
+		"; Log the actions that set wetness or sweat (swimming, cutscenes, pedestrians' umbrellas).\n"
 		"LogWetnessTracks = 0\n";
 
 	static std::wstring ReadString(const wchar_t* section, const wchar_t* key)
@@ -79,6 +90,8 @@ namespace config
 		gConfig.mShine = ReadFloat(L"Wet", L"Shine", gConfig.mShine);
 		gConfig.mGloss = ReadFloat(L"Wet", L"Gloss", gConfig.mGloss);
 		gConfig.mActionWetness = ReadBool(L"Wet", L"ActionWetness", gConfig.mActionWetness);
+		gConfig.mWetFootprints = ReadFloat(L"Wet", L"WetFootprints", gConfig.mWetFootprints);
+		gConfig.mUmbrellaPrototype = ReadBool(L"Umbrella", L"Prototype", gConfig.mUmbrellaPrototype);
 		gConfig.mLogging = ReadBool(L"Debug", L"Logging", gConfig.mLogging);
 		gConfig.mLogWetnessTracks = ReadBool(L"Debug", L"LogWetnessTracks", gConfig.mLogWetnessTracks);
 	}

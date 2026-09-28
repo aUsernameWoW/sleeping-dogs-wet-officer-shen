@@ -8,6 +8,10 @@ namespace scan
 	// Returns the match only if it is unique; logs the outcome under `name`.
 	uint8_t* FindUnique(const char* name, const char* pattern);
 
+	// Whether the bytes at `at` match `pattern`: checks an instruction (and the field offset it uses) at a known
+	// place inside a function found with FindUnique.
+	bool Matches(const uint8_t* at, const char* pattern);
+
 	// Resolves the target of a RIP-relative operand whose 32-bit displacement is at `disp`
 	// and whose instruction ends at `disp + 4 + trailing`.
 	void* RipTarget(const uint8_t* disp, int trailing = 0);

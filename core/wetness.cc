@@ -12,6 +12,7 @@
 #include <unordered_set>
 
 #include "config.hh"
+#include "footprints.hh"
 #include "log.hh"
 #include "scan.hh"
 
@@ -203,12 +204,14 @@ namespace wetness
 				}
 				if (pending.mSetWetness) {
 					Write(bytes, 0x74, pending.mWetness);
+					footprints::OnTrackApplied(sim, pending.mWetness);
 				}
 				LogRegistration(sim, component);
 			}
 		}
 
 		gLookUpdate(self, delta);
+		footprints::OnLookUpdated(sim, Read<float>(bytes, 0x74), delta);
 
 		if (gConfig.mLogWetnessTracks && sim && sim == gTrackTarget.load()) {
 			const float wetness = Read<float>(bytes, 0x74);

@@ -5,8 +5,11 @@
 #include <string>
 
 #include "core/config.hh"
+#include "core/crash.hh"
+#include "core/footprints.hh"
 #include "core/log.hh"
 #include "core/shaders.hh"
+#include "core/umbrella.hh"
 #include "core/wetness.hh"
 
 static std::wstring GetModuleDirectory(HMODULE module)
@@ -37,10 +40,12 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, LPVOID)
 
 		if (gConfig.mLogging) {
 			logger::Open(dir + L"\\SDWet.log");
+			crash::Install(dir);
 		}
 
-		LOG("SDWet loaded (WetLook=%d Shine=%.3f Gloss=%.3f ActionWetness=%d LogWetnessTracks=%d)", gConfig.mWetLook, gConfig.mShine,
-			gConfig.mGloss, gConfig.mActionWetness, gConfig.mLogWetnessTracks);
+		LOG("SDWet loaded (WetLook=%d Shine=%.3f Gloss=%.3f ActionWetness=%d WetFootprints=%.0f UmbrellaPrototype=%d LogWetnessTracks=%d)",
+			gConfig.mWetLook, gConfig.mShine, gConfig.mGloss, gConfig.mActionWetness, gConfig.mWetFootprints, gConfig.mUmbrellaPrototype,
+			gConfig.mLogWetnessTracks);
 
 		// Before the game's main runs (the ASI loader loads us from dinput8.dll, a static import), so the
 		// shader hook is in place before data\shaders\shaders.temp.bin is loaded.
@@ -51,6 +56,8 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, LPVOID)
 		}
 		shaders::Install();
 		wetness::Install();
+		footprints::Install();
+		umbrella::Install();
 	}
 
 	return TRUE;

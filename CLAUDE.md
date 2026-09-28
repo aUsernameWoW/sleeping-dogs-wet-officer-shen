@@ -2,12 +2,16 @@
 
 Fixes PCGamingWiki's "Wetness Bug on default and many other outfits": in the rain (and after swimming)
 most clothes and skin don't look wet; only a few items (and hair) do, and scripted rainy missions look right.
-Local-only so far; the planned public repo name is `sleeping-dogs-wet-officer-shen` (the user's choice).
+Public at https://github.com/aUsernameWoW/sleeping-dogs-wet-officer-shen (created 2026-09-28; the name is the
+user's choice).
 
-Status (2026-09-26): both fixes verified in game by the user ("working as expected"): wet in the rain, drying
-over ~60 s after it stops; wet right after climbing out of the water, drying the same way. README.md
-(players) and ADVANCED.md are written; their download/issue links point at the planned repo and only work
-once it's published. See **Handoff** at the end for what's left.
+Status (2026-09-28): both fixes verified in game by the user ("working as expected"): wet in the rain, drying
+over ~60 s after it stops; wet right after climbing out of the water, drying the same way. Wet footprints
+verified (at night). The umbrella prototype works as designed after 4 test rounds (opening, walking only,
+rain, indoor/outdoor sprint); the trigger is still F7, and it is off by default in public builds until it's
+finished. README.md (players) and ADVANCED.md are written; README's download link
+(`releases/latest/download/SDWet.zip`) works once a CI prerelease is promoted to a full release. See
+**Handoff** at the end for what's left.
 
 Two independent bugs:
 1. **Invisible wetness** (rain and swimming): the specular maps have no wet mask → `core/dxbc.cc` shader patch.
@@ -16,6 +20,10 @@ Two independent bugs:
    (CharacterLookComponent::_TypeUID), so its lookup returns null and it writes nothing (log, installed build:
    component #51 of 63, fixed table 49, flags 0x4001) → `core/wetness.cc`. `DisableSelfIlluminationTask`
    does the same lookup and is probably broken on the player too (not looked into).
+
+Plus additions (the user's ideas): wet footprints for `WetFootprints` (25) seconds after swimming →
+`core/footprints.cc` (2026-09-27; works per the user, tested at night only); not a bug fix, the original never
+leaves prints after a swim. An umbrella Wei can open → `core/umbrella.cc`, a prototype (see below).
 
 ## How the game does wetness (legacy addresses, see the workspace CLAUDE.md for the builds)
 
@@ -36,13 +44,41 @@ Two independent bugs:
   Wet, those only get the weak fallback term. All 2042 character materials use the `HK_CHARACTER*` shaders
   (the `CHARACTER_*` / `UBERSHADER_*` uber shaders in `shaders.temp.bin` are used by no character).
 - **Swimming**: `ApplyWetnessOrSweatTrack` (`mSweatLevel` +0x38, `mWetnessLevel` +0x3C, -1 = leave as is)
-  sits on many `Swimming\...` action nodes and on `Umbrella\Cycle\DryMeOff!`; the swim tracks carry
-  sweat -1, wetness 1.0. `ApplyWetnessOrSweatTask` Begin 0x1403ff1d0 / Update 0x140401b70 copy them into the
+  sits on 23 `GlobalActions\Swimming\...` nodes (every character), ~40 NIS cutscene nodes (Wei in Election,
+  Big Hit, Amanda Story, the nightmares...) and `GlobalActions\UpperBodySpawn\inventoryItem\Umbrella\Cycle\DryMeOff!`,
+  the open-umbrella carry cycle of pedestrians and thugs (PedestrianAI/PedestrianHangout/Thug behaviours open
+  and close it in the rain). **The player has no umbrella action**: he can only hold one as a melee weapon
+  (`Player\...\Melee\Umbrella` creates `object-physical-weapon-melee-umbrella`, dropped via
+  `PropReactions\Drop\PlayerUmbrella`). Source: `reference\SDmodding\Files\ActionNodes\*.txt`, a dump of all
+  action trees (tracks without values). The swim tracks carry sweat -1, wetness 1.0 (logged); the cutscene and
+  umbrella values were never logged. `ApplyWetnessOrSweatTask` Begin 0x1403ff1d0 / Update 0x140401b70 copy them into the
   look component (+0xB8 / +0xBC), End 0x1404004f0 resets sweat to -1 if the track set it. The task keeps its
   ActionContext at +0x28 (sim object at context +0x10). Component lookups: `SimObjectGame::GetComponentOfTypeHK`
   searches `m_Components` (size +0x60, 16-byte holders {component, type UID} at +0x68) from
   `mComponentTableEntryCount` (+0x80) on, `SimObject::GetComponentOfType` from 0; a holder matches if the high
   7 bits are equal and it has all the wanted low bits. Neither finds the player's look (see bug 2 above).
+
+## How the game does footprints (installed-build facts from the PDB/IDA; `research\footprints.py`)
+
+- `CharacterEffectsComponent::HandleFootstep(this, foot)` (legacy 0x140533e90, installed 0x1405340f0), called
+  from `FootStep{Left,Right}EffectTask::Begin` (locomotion animations; they find the component by fixed slot 38
+  on the player, so it works, unlike the look lookup). In shallow water (`CharacterPhysicsComponent::IsInWater`,
+  physics component at this+0xB0) it places `mWalkingThroughWaterEffect` (splash). Then for each ref in
+  `mPhysVolumeRefs` (+0x108, RB tree of `PhysVolumeRef` {mActive +0x20, mForceInactive +0x21, mTimeInVolume,
+  mTimeOutVolume, `PhysicsVolumeProperties*` +0x30}): the volume's `mFootStepEffect` if active, and its
+  `mFootStepDecal_Left/Right`. Last `mFootstepOverride[foot]` (+0x1A4, `SetFootstepOverride`, script
+  `set_footstep_override_effect(left, right)`, "none" = -1) unless -1 or equal to the decal just placed.
+- `CharacterEffectsComponent::Update` fills the refs each frame from up to 5 phantom volumes the character is in,
+  the ground's `PhysicsSurfaceProperties.mEffectProperty` (+0x6C; only `Water` and `Mud` name a volume), and for
+  the player while `m_WeatherState` > 1 outdoors `PhysVol_WetSurface` (0xF18CE285, the only volume the exe
+  names). A ref left behind counts `mTimeOutVolume` up and is dropped after `mFootStepDecalCountdown`: that's
+  why blood/mud/puddle prints continue 5 s after stepping out.
+- Volumes (`PhysicsProperties.perm.bin`): `Water` splash only; `PhysVol_WetSurface` (rain) `HK_PuddleSplash_01`
+  only; `PhysVol_Blood` bloody prints (texture `FX_DECL_BLOOD_FOOTSTEP_D_01`, a **bare foot** whatever the
+  shoes), 5 s; `Mud` muddy prints 5 s; `PhysVol_Puddle` splash + wet prints 5 s; `PhysVol_WetFootPrints` wet
+  prints (`HK_WetFootPrintLeft/Right_Effect` 0x823906F4/0xD439BE30, texture `FX_DECL_MUDPRINT_01`, a shoe
+  sole), 5 s, used only by the placed `PhantomVolume_2mSqr_WetFeet`; `PhysVol_OnFire` burning prints.
+  `HK_WEI_BloodyFoot_Effect` exists in `Effects.perm.bin` but no file references it (cut content?).
 
 ## What the mod does
 
@@ -60,6 +96,91 @@ Two independent bugs:
   running, so nothing is looked up by type and no component pointer outlives a frame. Queued values expire
   after 2 s. `ActionWetness` switches it; `LogWetnessTracks` (default 0) logs tracks and the wetness curve.
   The first track applied to each sim object is always logged with its component registration.
+- `core/footprints.cc` hooks `HandleFootstep` (23-byte prologue signature; `scan::Matches` then checks the
+  instructions that use +0xB0, +0x28 and +0x1A4 at fixed offsets, same in both builds, and takes `IsInWater`
+  from its call). The look hook reports each applied wetness track (`OnTrackApplied`: soaked if wetness >
+  1 − `WetFootprints`/60) and each update (`OnLookUpdated`: game seconds since the last soaking track, current
+  wetness). While a sim object is soaked, not in water and has no script override on that foot, the hook puts
+  the wet print effect in `mFootstepOverride[foot]` for the call only and restores -1. Ends after
+  `WetFootprints` game seconds (rain keeps wetness at 1) or when wetness drops below the threshold (a track
+  setting it low); entries whose look stopped updating expire after 10 s. Logs soaked / first print / end with
+  counts. Any soaking track counts, so a cutscene that soaks Wei would give prints after it too (untested).
+- `core/umbrella.cc`: the umbrella prototype, below. Its signatures are passed to `scan::FindUnique` literally so
+  `tools\pdb.ps1 verify` checks them; offsets it relies on inside functions are checked with `scan::Matches`.
+- `core/crash.cc` (copied from SDRadio): with `Logging`, a vectored handler logs the first access violations with
+  a stack and writes `SDWet-crash-<n>.dmp`. The game's exit crash (execute at `...488C`, see the workspace
+  CLAUDE.md) shows up there on every exit.
+- `core/hash.hh`: `qStringHash32` / `qStringHashUpper32` as constexpr (effect IDs, node names, track classes).
+
+## Umbrella prototype (`core/umbrella.cc`, 2026-09-28, round 4 verified)
+
+The user's idea: open the umbrella Wei holds (eventually by holding E). Wei can hold an umbrella only as a melee
+weapon (`object-physical-weapon-melee-umbrella`, actor `LOP_Umbrella002`, the same prop pedestrians carry and drop
+when scared); the prop's own tree has `Object\Animation\Opening/Closing`, `Object\OnInit\Opened`, `Object\Closed`.
+Pedestrians and thugs open and carry theirs with upper body nodes in GlobalActions:
+`...\UpperBodySpawn\inventoryItem\Umbrella\UmbrellaActions\Open\Open_Umbrella` (group `Pedestrian_Upright_Umbrella`,
+End 1.333; a TargetPlayTrack at 0.433 s plays the prop's Opening on target type 17 = the right hand),
+`...\Cycle\Male_Carry_Umbrella` (group `Pedestrian_Upright`, loops) and `...\Close\Close_Umbrella` (shakes the water
+off; TargetPlayTrack at 1.6 s plays Closing), requested by their AI and run in a spawned upper body controller.
+
+What it does now (ini `[Umbrella] Prototype`, default 0 until finished, the user's choice; F7 open/close, F9
+dump):
+- F7 with an umbrella in hand plays Open_Umbrella, then Male_Carry_Umbrella, on Wei in an ActionController of our
+  own, updated right after his (`ActionTreeComponent::update` hook, like a SpawnTask); the pedestrians'
+  TargetPlayTrack opens his umbrella. F7 again plays Close_Umbrella and stops the controller after ~2 s.
+- While open (the user's design) Wei only walks: a brisk walk (jog) while Shift is held, no sprint, no fighting,
+  pickups, weapon changes, parkour or cover:
+  - `TSCharacter::Mthd_allow_jog/allow_sprint` = bits 0/1 of `SimObjectCharacterPropertiesComponent::mBooleans`
+    (+0xF0; character component slot 3). The `Sprint` request never reaches the action tree's intention
+    (+0x218, mActionRequests +0xB0) while sprint is disallowed, so the brisk walk is Shift (no gamepad yet).
+  - `Mthd_action_request_disable` = clear a bit of `AICharacterControllerComponent::m_ActionRequestMask`
+    (+0x3D0, slot 21), which `AICharacterControllerComponent::Update` ANDs into the requests; the player has one
+    too (input goes through the `PlayerAI` tree). Blocked: Attack, Attack2, RunningAttack, MidRangeAttack,
+    StrikeRelease, Grab, Guard, Taunt, Pickup, Equip, EquipUP, Inventory, Weapon, WeaponMode, Freerun, Jump, Dive,
+    UseCover, CoverToggle (indices by name: `Intention::GetActionRequest`; ~100 names, `gActionRequest_*` in the
+    PDB).
+  - Restored when it closes or leaves his hand, to the game's current wish: the two script methods are hooked
+    (while restricted a call sees and sets the game's values, which are kept, then ours go back) and other
+    changes to the two bits are adopted too; every change is logged (`player can [not] jog, ...`). Needed because
+    the interiors' force walk (`InteriorTriggerProperties::mForceWalk` → script methods `start_force_walk` /
+    `stop_force_walk` on PlayerOne) turns sprint off indoors: opened indoors and carried out, the indoor state
+    used to come back. Force walk itself doesn't fit the umbrella: per its log strings it only stops jogging and
+    sprinting and switches the camera to `FollowCameraWalkSlow`; combat stays.
+- The prop's tree opens it whenever it rains (`OnInit` sits under an `IsRainingCondition`, next to it in
+  `Data\Global\Act_Files.bin`, the archive of all action trees; `Match` = `TimeOfDayManager::m_WeatherState > 1`)
+  and re-checks on entering `Closed` (a 0.1 s opportunity window), so in the rain it reopened right after
+  closing. `IsRainingCondition::Match` is hooked: for the umbrella in Wei's hand only (context +0x10 = its sim
+  object) it answers whether he holds it open. Our state follows the prop: an umbrella open while we think it's
+  closed (picked up open) gets closed; one that closes while open ends our open state.
+
+Test rounds (2026-09-28): 1. opening works and looks right, but the open umbrella stayed a usable weapon.
+2. walking, Shift and the blocks work; the rain reopened it after closing, and F8 (then a prop-only key) closed
+it behind our back, leaving sprint off. 3. F8 removed, rain check hooked: fixed; but sprint stayed off after it
+was opened indoors (force walk, above). 4. script hooks: "working as expected"; the log shows it opened indoors
+(`sprint 0 before`), `script allow_sprint set jog 1 sprint 1 while the umbrella is open` on walking out, and
+`jog 1 sprint 1` restored on closing.
+Not done: hold-E trigger (E also enters vehicles and interacts), closing for vehicles/water/cutscenes (dropping
+the weapon ends it), staying dry under it (the look's rain wetness keeps rising), gamepad brisk walk.
+
+Action tree runtime (from the PDB; layouts in umbrella.cc's header comment):
+- Each node path segment is `qStringHashUpper32`; `ActionNode::Find(ActionPath*, root)` walks from
+  `ActionNode::smRoot` ("Global") by `FindChild`; an ActionPath is {count, qOffset64 to the IDs}, built by hand
+  (`ActionPath::Append` allocates). Track class UIDs are `qStringHash32` of the class name.
+- `ActionTreeComponent::update` sets `UEL::gCurrentParameters` to the object's UELComponent (slot 0) + 0x58, then
+  `ActionController::Update(&mActionController /* +0xC0 */)`. Characters keep their ActionTreeComponent in
+  component slot 7, props in 6; `eTARGET_TYPE_EQUIPPED` = 17 (right hand), `UFG::getTarget(sim, type)`.
+  Component type UIDs are assigned at run time (-1 in the file), so use the slots.
+- `TargetPlayTask::Begin` = how to make another object play a node: its controller `Play(node, false)` (or
+  `PlayTracks`), then `updateTasksTimeBegin(0, false)`, with gCurrentParameters set to that object's.
+- `SpawnTask::Begin` = how a sub-controller is made: copy the calling ActionContext (`operator=`), point
+  context/controller at each other, parent context, opening branch = the node, tree type; if the node's tree
+  root (`GetAbsoluteRoot`, vtable +0x98) differs from the caller's, `ActionTreeComponentBase::AllocateFor` +
+  `ActionNodeRoot::Init`; then `Play(opening branch)`. `SpawnTask::Update` just calls `ActionController::Update`.
+- Which bones an animation drives is the AnimationTrack's own `mWeightSetName`, not the controller.
+- The player's own upper body layer is `Player\Inventory\MasterSpawn\SpawnActions\LocoUpperBody\Upperbody`
+  (None/Gun/Rifle, `ArmState\...\1_handWeaponMelee`, `Bag` with `ShoppingBag` pedestrian anims).
+- `reference\SDmodding\Files\ActionNodes\*.txt` dumps every tree (no conditions, few track values); `Chan.txt` is
+  the player's tree despite its name.
 
 ## Tests
 
@@ -67,14 +188,27 @@ Two independent bugs:
   reflection counts, and WARP renders with/without a wet mask, wet and dry.
 - `game_shaders_test`: all of the installed game's `shaders.temp.bin` (skips without the game): checksums,
   exactly the 28 `_WS` character permutations patched, each accepted by D3D11.
-- `load_test`: loads the .asi outside the game.
+- `load_test`: loads the .asi outside the game: default ini, and every feature reports its functions missing.
+- `umbrella_load_test`: the same with `[Umbrella] Prototype = 1` written first (the prototype's install path).
+
+## CI (`.github\`, copied from SDAtmos 2026-09-28)
+
+`build.yml` builds with `-warnAsError` against MinHook at the pin in `reference.env` (MinHook only), runs
+`tests\*_test.cc` (`game_shaders_test` passes without the game), packages `SDWet.zip` (Ultimate ASI Loader
+pinned in `asi-loader.env`) and publishes each passing push to `main` as prerelease `build-<N>`;
+`research/**` and `*.md` changes don't trigger it. `reference.yml` / `asi-loader.yml` open monthly PRs for new
+MinHook / loader releases (they need the repo setting "Allow GitHub Actions to create and approve pull
+requests"), Dependabot bumps the SHA-pinned actions. The `nexus` job and `nexus-release.yml` are skipped until
+the repo has the `NEXUS_*` variables and `NEXUSMODS_API_KEY` (no Nexus page yet); see `mods\SDIMEFix\CLAUDE.md`
+for how they work.
 
 ## Research tools (`research\`, see its README.md)
 
 Everything the findings above came from, runnable again: `shaders.py` (unpack `shaders.temp.bin`, bindings,
 cbuffer layouts, which permutations read Mask, patched variants), `dxbc.py`/`patch.py` (Python originals of
 `core/dxbc.cc`; byte-identical output), `materials.py` (material → shader template), `specsurvey.py` (wet
-masks in specular maps), `sigcheck.py` (signature uniqueness in both builds), and `renderdoc.ps1` +
+masks in specular maps), `sigcheck.py` (signature uniqueness in both builds), `footprints.py` (the game's
+footprint volumes, effects and decal textures), and `renderdoc.ps1` +
 `renderdoc\*.py` (launch the game under RenderDoc; per-draw permutation/wetness report, presented frame,
 G-buffer targets, and **offline previews**: re-render a capture with the original / default / stronger
 shaders, the fastest way to tune `Shine`/`Gloss`). Output goes to `build\research\` (gitignored game data).
@@ -91,18 +225,28 @@ The user tests and reports; `tools\build.ps1 -Mod SDWet -Test -Deploy` puts the 
 the game runs). Quick checks: F6 (SDAtmos' debug key) forces rain; wetness reaches 1 in ~12 s outdoors (not
 in vehicles, not under cover, needs sky irradiance > 0.2) and dries in 60 s. For swimming, jump into the sea
 anywhere along the harbour. `LogWetnessTracks = 1` in the user's ini logs the tracks and a wetness curve.
+Footprints: climb out, walk and look back; the log's `footprints:` lines count prints and in-water steps.
+Umbrella: F6 rain makes pedestrians carry umbrellas; hit or scare one and pick it up. F7 opens/closes, F9 logs
+nodes, action request indices and the jog/sprint switches.
 Night scenes show the effect weakly (few highlights); judge `Shine`/`Gloss` in daylight or under street lights.
 
-## Handoff: what's left (as of 2026-09-26)
+## Handoff: what's left (as of 2026-09-28)
 
+- **Umbrella, next** (round 4 verified 2026-09-28): hold-E trigger, auto-close cases, staying dry under it,
+  gamepad. When finished: default `Prototype` to 1, mention it in README.md, move the action tree runtime and
+  umbrella details into `docs/action-trees.md` (like SDRadio's `docs/radio-internals.md`) and keep a summary
+  here (agreed with the user). The user's own `plugins\SDWet.ini` has no `[Umbrella]` section, so the new
+  default turns the prototype off for them too; they add `Prototype = 1` themselves.
+- **First full release**: promote a verified `build-<N>` prerelease (un-tick "Set as a pre-release") so the
+  README's `releases/latest/download/SDWet.zip` works. Add screenshots (before/after in daylight) to README.md.
+- **Nexus page** (optional, like the other mods): create it, then set the `NEXUS_*` variables and
+  `NEXUSMODS_API_KEY` secret.
+- **Wet footprints**: the user says they work as expected (2026-09-28, 3 swims, 32-92 prints each), but only
+  tested at night; check in daylight on several surfaces (concrete, sand, grass) and whether 25 s is right.
 - **Tune `Shine`/`Gloss`** in daylight with the user (defaults 0.05/0.10; 0.10/0.20 already looks plastic on
   the vest). Use `research\renderdoc.ps1 preview` on a daylight capture before asking for game restarts.
   Maybe also darken more (the shader darkens by `0.35 × w × (1 − gloss)`, so more gloss means less
   darkening); that would be a second patch on the `mad ..., l(0.35...)` instruction.
-- **CI**: copy `.github\` from SDAtmos (build.yml, reference.env with MinHook only, asi-loader.env,
-  dependabot, reference.yml, asi-loader.yml, nexus-release.yml); `game_shaders_test` skips there.
-- **Publish** as `aUsernameWoW/sleeping-dogs-wet-officer-shen` only when the user says so (outward-facing).
-  Add screenshots (before/after in daylight) to README.md then.
 - **Clean up** when tuning is done: `steam_appid.txt` in the game folder (added for RenderDoc launches), the
   user's `plugins\SDWet.ini` has `LogWetnessTracks = 1` (theirs; leave it unless asked), captures in
   `build\research\captures\`.

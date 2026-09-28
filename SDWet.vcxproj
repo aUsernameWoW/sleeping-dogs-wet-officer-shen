@@ -99,10 +99,13 @@
   <ItemGroup>
     <ClCompile Include="dllmain.cc" />
     <ClCompile Include="core\config.cc" />
+    <ClCompile Include="core\crash.cc" />
     <ClCompile Include="core\dxbc.cc" />
+    <ClCompile Include="core\footprints.cc" />
     <ClCompile Include="core\log.cc" />
     <ClCompile Include="core\scan.cc" />
     <ClCompile Include="core\shaders.cc" />
+    <ClCompile Include="core\umbrella.cc" />
     <ClCompile Include="core\wetness.cc" />
   </ItemGroup>
   <!-- MinHook (upstream, BSD-2) built from source into the .asi with the project's /MT and /GL; its own
@@ -114,10 +117,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="core\config.hh" />
+    <ClInclude Include="core\crash.hh" />
     <ClInclude Include="core\dxbc.hh" />
+    <ClInclude Include="core\footprints.hh" />
+    <ClInclude Include="core\hash.hh" />
     <ClInclude Include="core\log.hh" />
     <ClInclude Include="core\scan.hh" />
     <ClInclude Include="core\shaders.hh" />
+    <ClInclude Include="core\umbrella.hh" />
     <ClInclude Include="core\wetness.hh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

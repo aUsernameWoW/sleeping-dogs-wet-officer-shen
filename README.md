@@ -7,7 +7,8 @@
 让《热血无赖：终极版》里的角色**淋雨和游泳后真的变湿**：
 
 - 下雨时，衣服和皮肤会慢慢变湿，颜色变深、开始反光；雨停后大约一分钟内逐渐变干；
-- 从水里爬上岸时，Wei 浑身湿透，然后同样慢慢变干。
+- 从水里爬上岸时，Wei 浑身湿透，然后同样慢慢变干；
+- 上岸后的二十几秒里，走过的地方会留下湿脚印。
 
 游戏本来就设计了这个效果，但在终极版里，大部分衣服和皮肤都看不出湿，游泳后也完全不湿。这个 mod 把它修好了。
 游戏的其他画面不受影响。
@@ -61,7 +62,7 @@ SleepingDogsDefinitiveEdition\
 
 照常从 Steam 启动游戏。`plugins` 里多出 `SDWet.ini` 和 `SDWet.log` 两个文件，就说明 mod 已经加载。
 
-想马上看效果：跳进海里游几秒，再爬上岸。
+想马上看效果：跳进海里游几秒，再爬上岸，走几步回头看看。
 
 ### 常见问题
 
@@ -69,6 +70,10 @@ SleepingDogsDefinitiveEdition\
 
 用记事本打开 `plugins\SDWet.ini`，改 `Shine`（湿了以后的反光强度，默认 0.05，0 就是游戏原样），保存后重启
 游戏。每一项都有中文说明。
+
+**不想要湿脚印，或者想让它留久一点**
+
+同样在 `plugins\SDWet.ini` 里，改 `WetFootprints`（上岸后留脚印的秒数，默认 25，0 就是不留），保存后重启游戏。
 
 **`plugins` 里没有 `SDWet.log`**
 
@@ -99,7 +104,8 @@ Makes characters in Sleeping Dogs: Definitive Edition **actually get wet** in th
 
 - in the rain, clothes and skin slowly get wet: darker and glossy; after the rain stops they dry within about a
   minute;
-- climbing out of the water, Wei is soaked, and dries the same way.
+- climbing out of the water, Wei is soaked, and dries the same way;
+- for the first twenty-odd seconds out of the water, he leaves wet footprints.
 
 The game was made with this effect, but in the Definitive Edition most clothes and skin never look wet, and
 swimming doesn't make anyone wet at all. This mod fixes that. Nothing else in the game's look changes.
@@ -154,7 +160,7 @@ SleepingDogsDefinitiveEdition\
 
 Start the game from Steam as usual. When `SDWet.ini` and `SDWet.log` appear in `plugins`, the mod is loaded.
 
-To see it right away: jump into the sea, swim for a few seconds and climb out.
+To see it right away: jump into the sea, swim for a few seconds, climb out, walk a few steps and look back.
 
 ### FAQ
 
@@ -162,6 +168,11 @@ To see it right away: jump into the sea, swim for a few seconds and climb out.
 
 Open `plugins\SDWet.ini` in Notepad and change `Shine` (how much wet clothes and skin shine; default 0.05, 0 is
 the game as is), save and restart the game. Every setting is explained in the file.
+
+**No wet footprints wanted, or longer ones**
+
+In the same `plugins\SDWet.ini`, change `WetFootprints` (seconds of footprints after climbing out; default 25,
+0 = none), save and restart the game.
 
 **There's no `SDWet.log` in `plugins`**
 

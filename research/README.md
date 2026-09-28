@@ -55,6 +55,14 @@ RenderDoc 1.46 (`winget install BaldurKarlsson.RenderDoc`). `shaders.py unpack` 
 - `preview` swaps shaders with `BuildTargetShader` + `ReplaceResource` on replay: tuning `Shine`/`Gloss`
   without starting the game. Add tags to `VARIANTS` in `shaders.py` and re-run `unpack`.
 
+## Footprints — `footprints.py`
+
+`footprints.py` (extract venv): every `PhysicsVolumeProperties` of `Data\Global\PhysicsProperties.perm.bin`
+with its footstep effect, left/right decals, how long the decals continue after leaving, damage and fire; the
+surfaces that count as a volume (`Water`, `Mud`); the decal textures. Where `core/footprints.cc`'s facts come
+from (wet footprint decals exist, only puddles and placed volumes use them). The file isn't in the community
+name lists; the script reads it by path. Its docstring has the qReflect layout.
+
 ## Signatures — `sigcheck.py`
 
 `python sigcheck.py "Name=48 8B C4 ? ? 57"`: match count in the installed exe and in the legacy v1.0 exe

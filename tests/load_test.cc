@@ -1,5 +1,5 @@
 // Loads SDWet.asi into a process that isn't the game: it must not crash, must write its default ini and
-// must report both game functions missing. argv[1] = path to the .asi (build.ps1 passes a sandbox copy).
+// must report the game functions missing. argv[1] = path to the .asi (build.ps1 passes a sandbox copy).
 
 #include <Windows.h>
 
@@ -41,11 +41,14 @@ int main(int argc, char** argv)
 	std::printf("%s", contents.c_str());
 
 	const char* expected[] = {
-		"SDWet loaded (WetLook=1 Shine=0.050 Gloss=0.100 ActionWetness=1 LogWetnessTracks=0)",
+		"SDWet loaded (WetLook=1 Shine=0.050 Gloss=0.100 ActionWetness=1 WetFootprints=25 UmbrellaPrototype=0 LogWetnessTracks=0)",
 		"Illusion::StageShader::LoadShader: 0 matches",
 		"LoadShader MISSING, wet look off",
 		"ApplyWetnessOrSweatTask::Begin: 0 matches",
 		"CharacterLookComponent::Update MISSING, swimming stays dry",
+		"CharacterEffectsComponent::HandleFootstep: 0 matches",
+		"HandleFootstep MISSING or not as expected, no wet footprints",
+		"umbrella: prototype off",
 	};
 	for (const char* line : expected) {
 		if (contents.find(line) == std::string::npos) {

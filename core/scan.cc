@@ -96,6 +96,21 @@ namespace scan
 		return found;
 	}
 
+	bool Matches(const uint8_t* at, const char* pattern)
+	{
+		std::vector<uint8_t> bytes;
+		std::vector<bool> mask;
+		if (!at || !Parse(pattern, bytes, mask)) {
+			return false;
+		}
+		for (size_t i = 0; i < bytes.size(); ++i) {
+			if (mask[i] && at[i] != bytes[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	void* RipTarget(const uint8_t* disp, int trailing)
 	{
 		int32_t offset;
