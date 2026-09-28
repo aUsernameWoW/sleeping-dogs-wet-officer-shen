@@ -1,0 +1,308 @@
+# Builds SDWet.asi and runs the automated tests, the way tools\build.ps1 -Test does in the modding workspace.
+# The .vcxproj reads MinHook's sources from ..\..\reference, so the job recreates that layout: this repo in
+# mods\SDWet, MinHook in reference\minhook, at the commit in .github/reference.env. Every push to main that
+# passes is then published as a prerelease.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'research/**']
+  pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'research/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Release x64
+    # The image windows-latest points to: Windows Server 2025, Visual Studio 2026 with the project's v143
+    # toolset (MSVC 14.44) installed alongside. Named explicitly: plain windows-2025 has been served both
+    # VS 2022 and VS 2026 images (actions/runner-images#14004).
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: mods/SDWet
+    steps:
+      - name: Check out SDWet
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: mods/SDWet
+          persist-credentials: false
+
+      # MINHOOK_REF etc. for the steps below. The pins live outside this file so that reference.yml can move
+      # them (the workflow token may not change workflow files).
+      - name: Read the reference\ pins
+        run: Get-Content .github/reference.env | Where-Object { $_ -match '^\w+=' } | Add-Content $env:GITHUB_ENV
+
+      # reference\ only changes when a pin moves, so a hit skips the checkout below.
+      - name: Restore reference\ from cache
+        id: reference
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: reference
+          key: reference-minhook-${{ env.MINHOOK_REF }}
+
+      - name: Check out MinHook
+        if: steps.reference.outputs.cache-hit != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: TsudaKageyu/minhook
+          ref: ${{ env.MINHOOK_REF }}
+          path: reference/minhook
+          sparse-checkout: |
+            include
+            src
+          filter: blob:none
+          persist-credentials: false
+
+      # The build is warning-free at /W4 and should stay so, hence -warnAsError (CI only, not build.ps1).
+      - name: Build
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          & "$vs\MSBuild\Current\Bin\amd64\MSBuild.exe" SDWet.sln -p:Configuration=Release -p:Platform=x64 -v:m -nologo -warnAsError
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      # tests\*.cc are all compiled; *_test.cc run with the .asi path as argv[1] (exit 0 = pass).
+      # game_shaders_test needs the installed game and passes without it.
+      - name: Test
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          & "$vs\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          $asi = (Resolve-Path build\Release\SDWet.asi).Path
+          $out = (New-Item -ItemType Directory -Force build\tests).FullName
+          # Each test is its own program, so they compile side by side (the runspaces share the dev shell's
+          # environment); each compiler output is printed afterwards as one block.
+          $compiles = Get-ChildItem tests -Filter *.cc | ForEach-Object -ThrottleLimit ([Environment]::ProcessorCount) -Parallel {
+              Set-Location $using:out
+              $log = cl /nologo /EHsc /W3 /std:c++20 /utf-8 $_.FullName 2>&1
+              [pscustomobject]@{ Name = $_.Name; Ok = $LASTEXITCODE -eq 0; Log = $log | Out-String }
+          } | Sort-Object Name
+          $compiles | ForEach-Object { Write-Host $_.Log.TrimEnd() }
+          $broken = @($compiles | Where-Object { -not $_.Ok } | ForEach-Object Name)
+          if ($broken) { throw "Failed to compile $($broken -join ', ')" }
+          $failed = @()
+          foreach ($src in Get-ChildItem tests -Filter *_test.cc) {
+              Write-Host "== $($src.BaseName)"
+              # Run next to a private copy so the test writes its .ini/.log there, not in build\Release.
+              $sandbox = (New-Item -ItemType Directory -Force (Join-Path $out $src.BaseName)).FullName
+              Copy-Item $asi $sandbox -Force
+              & (Join-Path $out "$($src.BaseName).exe") (Join-Path $sandbox SDWet.asi)
+              if ($LASTEXITCODE) { $failed += $src.BaseName }
+          }
+          if ($failed) { throw "Failed: $($failed -join ', ')" }
+
+      - name: Upload SDWet.asi
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: SDWet
+          path: |
+            mods/SDWet/build/Release/SDWet.asi
+            mods/SDWet/build/Release/SDWet.pdb
+          if-no-files-found: error
+
+  # SDWet.zip, the download for players: unpacked into the game folder it gives dinput8.dll (Ultimate ASI
+  # Loader, pinned in .github/asi-loader.env) and plugins\SDWet.asi. The Nexus uploads are this same zip.
+  # Also runs for PRs, so a loader update is downloaded and checked before it is merged.
+  package:
+    name: Package
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out SDWet
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download SDWet.asi
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: SDWet
+          path: dist
+
+      # The loader is downloaded once per pin, so builds don't depend on the upstream release asset staying
+      # available. A cached copy is checked against the pinned SHA-256 like a fresh download.
+      - name: Restore the ASI loader from cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: loader.zip
+          key: asi-loader-${{ hashFiles('.github/asi-loader.env') }}
+
+      - name: Package SDWet.zip
+        run: |
+          . .github/asi-loader.env
+          [ -f loader.zip ] || curl -sSfL --retry 3 -o loader.zip "$ASI_LOADER_URL"
+          echo "$ASI_LOADER_SHA256  loader.zip" | sha256sum -c -
+          mkdir -p package/plugins
+          unzip -j loader.zip '*dinput8.dll' -d package
+          cp dist/SDWet.asi package/plugins/
+          cp THIRD-PARTY-NOTICES.md package/plugins/SDWet-THIRD-PARTY-NOTICES.md
+          (cd package && zip -r -X ../SDWet.zip dinput8.dll plugins)
+          unzip -l SDWet.zip
+
+      - name: Upload SDWet.zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: SDWet-zip
+          path: SDWet.zip
+          if-no-files-found: error
+
+  # Tag build-<N>, N = the commit's position on main (stable across re-runs). The assets keep their plain
+  # names so SDWet.asi can go into plugins\ as downloaded, and the README can link
+  # releases/latest/download/SDWet.zip (the newest full release).
+  prerelease:
+    name: Prerelease
+    needs: package
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      # Full history and tags: the build number and the change list since the previous build.
+      - name: Check out history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download SDWet.asi and SDWet.zip
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: SDWet*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          n=$(git rev-list --count HEAD)
+          tag="build-$n"
+          short=$(git rev-parse --short HEAD)
+          if gh release view "$tag" > /dev/null 2>&1; then
+            # A re-run of the same commit refreshes the assets; the same number on another commit means
+            # main was rewritten, which needs a person to sort out.
+            if [ "$(git rev-list -n 1 "refs/tags/$tag")" != "$GITHUB_SHA" ]; then
+              echo "::error::$tag already exists for another commit"
+              exit 1
+            fi
+            gh release upload "$tag" dist/SDWet.zip dist/SDWet.asi dist/SDWet.pdb THIRD-PARTY-NOTICES.md --clobber
+            exit 0
+          fi
+          prev=$(git describe --tags --abbrev=0 --match 'build-*' HEAD 2> /dev/null || true)
+          {
+            echo "Automatic build of $short on \`main\` ([CI run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)). Untested in game."
+            echo
+            echo "- \`SDWet.zip\`: unpack into the game folder. Contains the mod and Ultimate ASI Loader (\`dinput8.dll\`); see the [README](https://github.com/$GITHUB_REPOSITORY#readme)."
+            echo "- \`SDWet.asi\`: the mod alone, for the \`plugins\` folder of a game that already has an ASI loader."
+            echo "- \`SDWet.pdb\`: only needed to read crash dumps."
+            echo
+            if [ -n "$prev" ]; then
+              echo "Changes since $prev:"
+              git log --format='- %s (%h)' "$prev..HEAD"
+            else
+              echo "Recent changes:"
+              git log -n 10 --format='- %s (%h)'
+            fi
+          } > notes.md
+          gh release create "$tag" dist/SDWet.zip dist/SDWet.asi dist/SDWet.pdb THIRD-PARTY-NOTICES.md --prerelease --target "$GITHUB_SHA" \
+            --title "SDWet build $n ($short)" --notes-file notes.md
+
+  # Each new prerelease also becomes the latest version of the mod's "GitHub CI Build" file on Nexus Mods,
+  # through the v3 upload API. Full releases go to a separate main file (nexus-release.yml). Configured per
+  # repository, so the job is the same in every mod:
+  #   vars.NEXUS_MOD_ID          v3 ID of the mod ("Unique Mod ID"), vars.NEXUS_CI_FILE_ID and
+  #   vars.NEXUS_RELEASE_FILE_ID v3 IDs of the two files ("File ID": the update chain, not one upload).
+  #                              All three are in the "Advanced" dialog of a file on the mod page's Files tab.
+  #   secrets.NEXUSMODS_API_KEY  a personal API key (nexusmods.com/settings/api-keys)
+  # Without NEXUS_CI_FILE_ID the job is skipped. Until a release file exists the CI builds are the mod's main
+  # download and carry its version and changelog; after that, they are an optional file and releases do that.
+  nexus:
+    name: Nexus Mods
+    needs: prerelease
+    if: vars.NEXUS_CI_FILE_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXUS_API: https://api.nexusmods.com/v3
+      NEXUS_CI_FILE_ID: ${{ vars.NEXUS_CI_FILE_ID }}
+    steps:
+      # Full history and tags: the build number and the change list since the version Nexus has.
+      - name: Check out history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Nexus keeps every upload as a new version, so a re-run of a build it already has uploads nothing.
+      # The file is the prerelease's SDWet.zip; the .pdb stays on GitHub. Paths in the description use /:
+      # the Files tab shows file descriptions with their backslashes removed.
+      - name: Package
+        id: package
+        env:
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$NEXUSMODS_API_KEY" ]; then
+            echo "::error::vars.NEXUS_CI_FILE_ID is set but secrets.NEXUSMODS_API_KEY is not"
+            exit 1
+          fi
+          n=$(git rev-list --count HEAD)
+          version="build-$n"
+          short=$(git rev-parse --short HEAD)
+          curl -sS --fail-with-body --retry 3 -H "apikey: $NEXUSMODS_API_KEY" -H "User-Agent: $GITHUB_REPOSITORY" \
+            "$NEXUS_API/mod-files/$NEXUS_CI_FILE_ID/versions" > versions.json
+          if jq -e --arg v "$version" 'any(.data.versions[]; .version == $v)' versions.json > /dev/null; then
+            echo "::notice::Nexus Mods already has $version"
+            exit 0
+          fi
+          latest=$(jq -r '.data.versions | max_by(.uploaded_at) | .version // empty' versions.json)
+
+          gh release download "$version" -p SDWet.zip -O "SDWet-$version.zip"
+
+          # Changes since the version Nexus has, or since the previous build if that is not a build tag.
+          if git rev-parse -q --verify "refs/tags/$latest" > /dev/null; then
+            since=$latest
+          else
+            since=$(git describe --tags --abbrev=0 --match 'build-*' HEAD^ 2> /dev/null || true)
+          fi
+          {
+            echo "version=$version"
+            echo "name=SDWet GitHub CI Build $n"
+            echo "description=Automatic build of $short on main, untested in game. Unpack into the game folder: dinput8.dll (Ultimate ASI Loader) and plugins/SDWet.asi. Source and .pdb: https://github.com/$GITHUB_REPOSITORY/releases/tag/$version"
+            delimiter="EOF_$(openssl rand -hex 8)"
+            echo "changelog<<$delimiter"
+            if [ -n "$since" ]; then git log --format='%s' "$since..HEAD"; else git log -n 10 --format='%s'; fi
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+          echo "upload=true" >> "$GITHUB_OUTPUT"
+
+      # The previous version moves to the file's archive.
+      - name: Upload to Nexus Mods
+        if: steps.package.outputs.upload == 'true'
+        uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23 # v1.0.0-beta.10
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          mod_id: ${{ vars.NEXUS_MOD_ID }}
+          file_id: ${{ vars.NEXUS_CI_FILE_ID }}
+          filename: SDWet-${{ steps.package.outputs.version }}.zip
+          version: ${{ steps.package.outputs.version }}
+          display_name: ${{ steps.package.outputs.name }}
+          description: ${{ steps.package.outputs.description }}
+          category: ${{ vars.NEXUS_RELEASE_FILE_ID == '' && 'main' || 'optional' }}
+          primary_mod_manager_download: ${{ vars.NEXUS_RELEASE_FILE_ID == '' }}
+          update_mod_version: ${{ vars.NEXUS_RELEASE_FILE_ID == '' }}
+          changelog: ${{ vars.NEXUS_RELEASE_FILE_ID == '' && steps.package.outputs.changelog || '' }}
+          archive_existing_version: true
