@@ -96,6 +96,10 @@ SleepingDogsDefinitiveEdition\
 在 [GitHub Issues](https://github.com/aUsernameWoW/sleeping-dogs-wet-officer-shen/issues) 里说明情况，并附上
 `plugins\SDWet.log`。
 
+### 致谢
+
+感谢 [SDmodding](https://github.com/SDmodding) 社区公开的《热血无赖》研究资料和工具，开发这个 mod 时用到了它们。
+
 与 Square Enix、United Front Games 均无关联。
 
 ## English
@@ -194,5 +198,10 @@ Delete `SDWet.asi`, `SDWet.ini` and `SDWet.log` from `plugins`. If there are no 
 
 Describe it in [GitHub Issues](https://github.com/aUsernameWoW/sleeping-dogs-wet-officer-shen/issues) and attach
 `plugins\SDWet.log`.
+
+### Credits
+
+Thanks to the [SDmodding](https://github.com/SDmodding) community for the Sleeping Dogs research and tools they
+share, which went into making this mod.
 
 Not affiliated with Square Enix or United Front Games.
