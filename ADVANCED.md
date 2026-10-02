@@ -163,7 +163,7 @@ Nexus Mods 上传（`build.yml` 的 `nexus` 任务和 `nexus-release.yml`）要�
 - Microsoft 的 HLSL 编译器（fxc、D3DCompiler）和 WARP：编译对照用的着色器、运行测试。
 - [Python](https://www.python.org) 和 [Pillow](https://python-pillow.org)：研究脚本。
 - [IDA Pro](https://hex-rays.com/ida-pro)（Hex-Rays）和 [ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp)（mrexodia）：分析游戏程序。
-- [Claude Code](https://claude.com/claude-code)（Anthropic）：这个 mod 是在 AI 辅助下开发的，代码、文档和逆向分析由作者和 Claude 一起完成。
+- [Claude Code](https://claude.com/claude-code)（Anthropic）：这个 mod 的代码、文档和逆向分析几乎全部由 Claude 完成；作者负责提出需求、把握方向和在游戏里测试，代码审查得很少。
 
 **游戏与商标**
 
@@ -348,8 +348,9 @@ This mod uses or builds on the work of these people and projects. Thank you.
 - Microsoft's HLSL compiler (fxc, D3DCompiler) and WARP: reference shaders and the tests.
 - [Python](https://www.python.org) and [Pillow](https://python-pillow.org): the research scripts.
 - [IDA Pro](https://hex-rays.com/ida-pro) (Hex-Rays) and [ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp) (mrexodia): analyzing the game's code.
-- [Claude Code](https://claude.com/claude-code) (Anthropic): this mod was developed with AI assistance; its code, documentation and reverse
-  engineering were done by the author together with Claude.
+- [Claude Code](https://claude.com/claude-code) (Anthropic): almost all of this mod's code, documentation and reverse
+  engineering was done by Claude; the author set the goals, steered and tested in game, and reviewed little of the
+  code.
 
 **The game and trademarks**
 
