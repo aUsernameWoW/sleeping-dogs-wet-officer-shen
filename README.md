@@ -98,7 +98,37 @@ SleepingDogsDefinitiveEdition\
 
 ### 致谢
 
-感谢 [SDmodding](https://github.com/SDmodding) 社区公开的《热血无赖》研究资料和工具，开发这个 mod 时用到了它们。
+这个 mod 用到或参考了下面这些人和项目的成果，在此致谢。
+
+**研究资料**
+
+- [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Sleeping_Dogs:_Definitive_Edition)：上面记录了终极版的湿身问题
+  （“Wetness Bug on default and many other outfits”）。
+- [SDmodding](https://github.com/SDmodding)，几乎全部出自 [sneakyevil](https://github.com/sneakyevil) 一人之手。这个 mod 用到了：
+  - SDmodding 分享的游戏 v1.0 版 exe 和调试符号（PDB，Steam 首发版自带）：函数特征码和游戏的数据结构都是从这里查到的；
+  - [SDK](https://github.com/SDmodding/SDK) 和 [TheoryEngine](https://github.com/SDmodding/TheoryEngine)：材质与着色器资源的结构，以及游戏的字符串哈希；
+  - [Files](https://github.com/SDmodding/Files) 里导出的动作树（ActionNodes）：雨伞原型；
+  - [BigFileSystem](https://github.com/SDmodding/BigFileSystem)、[TheoryEngine](https://github.com/SDmodding/TheoryEngine)，以及 sneakyevil 的 [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) 和 [Ekey](https://github.com/Ekey) 的 SDDEUnpacker 里的文件名列表：
+    我们照着它们写了读取游戏资源包（`.big`）的工具，研究脚本（`research/`）用它读取游戏的材质、着色器和贴图。
+
+**mod 里包含的代码**（许可证全文见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)）
+
+- [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)（ThirteenAG）：压缩包里的 `dinput8.dll`，让游戏加载 mod。它本身还包含 MinHook、
+  [miniz](https://github.com/richgel999/miniz)（Rich Geldreich 等）和 [praydog](https://github.com/praydog) 的 FunctionHookMinHook。
+- [MinHook](https://github.com/TsudaKageyu/minhook)（Tsuda Kageyu，内含 Vyacheslav Patkov 的 Hacker Disassembler Engine）：mod 靠它接入游戏。
+
+**工具**
+
+- [RenderDoc](https://renderdoc.org)（Baldur Karlsson 等）：抓帧分析和离线预览。
+- Microsoft 的 HLSL 编译器（fxc、D3DCompiler）和 WARP：编译对照用的着色器、运行测试。
+- [Python](https://www.python.org) 和 [Pillow](https://python-pillow.org)：研究脚本。
+- [IDA Pro](https://hex-rays.com/ida-pro)（Hex-Rays）和 [ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp)（mrexodia）：分析游戏程序。
+- [Claude Code](https://claude.com/claude-code)（Anthropic）：这个 mod 是在 AI 辅助下开发的，代码、文档和逆向分析由作者和 Claude 一起完成。
+
+**游戏与商标**
+
+《热血无赖：终极版》（Sleeping Dogs: Definitive Edition）由 United Front Games 开发、Square Enix 发行，
+游戏及其内容的版权归 Square Enix 所有。
 
 与 Square Enix、United Front Games 均无关联。
 
@@ -201,7 +231,38 @@ Describe it in [GitHub Issues](https://github.com/aUsernameWoW/sleeping-dogs-wet
 
 ### Credits
 
-Thanks to the [SDmodding](https://github.com/SDmodding) community for the Sleeping Dogs research and tools they
-share, which went into making this mod.
+This mod uses or builds on the work of these people and projects. Thank you.
+
+**Research**
+
+- [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Sleeping_Dogs:_Definitive_Edition): its write-up of the Definitive
+  Edition's wetness problem ("Wetness Bug on default and many other outfits").
+- [SDmodding](https://github.com/SDmodding), almost all of it the work of one person, [sneakyevil](https://github.com/sneakyevil). This mod used:
+  - the game's v1.0 exe and its debug symbols (PDB, shipped with the original Steam release), shared by
+    SDmodding: the function signatures and the game's data structures come from them;
+  - the [SDK](https://github.com/SDmodding/SDK) and [TheoryEngine](https://github.com/SDmodding/TheoryEngine): the material and shader resource layouts, and the game's string hash;
+  - the action trees (ActionNodes) exported in [Files](https://github.com/SDmodding/Files): the umbrella prototype;
+  - [BigFileSystem](https://github.com/SDmodding/BigFileSystem), [TheoryEngine](https://github.com/SDmodding/TheoryEngine), and the file name lists in sneakyevil's [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) and in [Ekey](https://github.com/Ekey)'s
+    SDDEUnpacker: our tool for reading the game's `.big` archives follows them; the research scripts (`research/`) read the game's materials, shaders and textures with it.
+
+**Code in the mod** (full license texts in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md))
+
+- [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) (ThirteenAG): the `dinput8.dll` in the zip, which makes the game load mods.
+  It contains MinHook, [miniz](https://github.com/richgel999/miniz) (Rich Geldreich and others) and [praydog](https://github.com/praydog)'s FunctionHookMinHook.
+- [MinHook](https://github.com/TsudaKageyu/minhook) (Tsuda Kageyu, with Vyacheslav Patkov's Hacker Disassembler Engine): how the mod hooks into the game.
+
+**Tools**
+
+- [RenderDoc](https://renderdoc.org) (Baldur Karlsson and others): frame captures and offline previews.
+- Microsoft's HLSL compiler (fxc, D3DCompiler) and WARP: reference shaders and the tests.
+- [Python](https://www.python.org) and [Pillow](https://python-pillow.org): the research scripts.
+- [IDA Pro](https://hex-rays.com/ida-pro) (Hex-Rays) and [ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp) (mrexodia): analyzing the game's code.
+- [Claude Code](https://claude.com/claude-code) (Anthropic): this mod was developed with AI assistance; its code, documentation and reverse
+  engineering were done by the author together with Claude.
+
+**The game and trademarks**
+
+Sleeping Dogs: Definitive Edition was developed by United Front Games and published by Square Enix; the game
+and its content are © Square Enix.
 
 Not affiliated with Square Enix or United Front Games.
