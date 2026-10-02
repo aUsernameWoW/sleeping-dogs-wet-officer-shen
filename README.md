@@ -109,7 +109,7 @@ SleepingDogsDefinitiveEdition\
   - [SDK](https://github.com/SDmodding/SDK) 和 [TheoryEngine](https://github.com/SDmodding/TheoryEngine)：材质与着色器资源的结构，以及游戏的字符串哈希；
   - [Files](https://github.com/SDmodding/Files) 里导出的动作树（ActionNodes）：雨伞原型；
   - [BigFileSystem](https://github.com/SDmodding/BigFileSystem)、[TheoryEngine](https://github.com/SDmodding/TheoryEngine)，以及 sneakyevil 的 [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) 和 [Ekey](https://github.com/Ekey) 的 SDDEUnpacker 里的文件名列表：
-    我们照着它们写了读取游戏资源包（`.big`）的工具，研究脚本（`research/`）用它读取游戏的材质、着色器和贴图。
+    读取游戏资源包（`.big`）的工具是照着它们写的，研究脚本（`research/`）用它读取游戏的材质、着色器和贴图。
 
 **mod 里包含的代码**（许可证全文见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)）
 
@@ -123,7 +123,7 @@ SleepingDogsDefinitiveEdition\
 - Microsoft 的 HLSL 编译器（fxc、D3DCompiler）和 WARP：编译对照用的着色器、运行测试。
 - [Python](https://www.python.org) 和 [Pillow](https://python-pillow.org)：研究脚本。
 - [IDA Pro](https://hex-rays.com/ida-pro)（Hex-Rays）和 [ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp)（mrexodia）：分析游戏程序。
-- [Claude Code](https://claude.com/claude-code)（Anthropic）：这个 mod 的代码、文档和逆向分析几乎全部由 Claude 完成；作者负责提出需求、把握方向和在游戏里测试，代码审查得很少。
+- [Claude Code](https://claude.com/claude-code)（Anthropic）：这个 mod 完全是用 Claude Fable 和 Opus vibe coding 写出来的，代码、文档和逆向分析都出自 Claude，几乎没有经过人工审查。
 
 **游戏与商标**
 
@@ -243,7 +243,7 @@ This mod uses or builds on the work of these people and projects. Thank you.
   - the [SDK](https://github.com/SDmodding/SDK) and [TheoryEngine](https://github.com/SDmodding/TheoryEngine): the material and shader resource layouts, and the game's string hash;
   - the action trees (ActionNodes) exported in [Files](https://github.com/SDmodding/Files): the umbrella prototype;
   - [BigFileSystem](https://github.com/SDmodding/BigFileSystem), [TheoryEngine](https://github.com/SDmodding/TheoryEngine), and the file name lists in sneakyevil's [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) and in [Ekey](https://github.com/Ekey)'s
-    SDDEUnpacker: our tool for reading the game's `.big` archives follows them; the research scripts (`research/`) read the game's materials, shaders and textures with it.
+    SDDEUnpacker: the tool that reads the game's `.big` archives follows them; the research scripts (`research/`) read the game's materials, shaders and textures with it.
 
 **Code in the mod** (full license texts in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md))
 
@@ -257,9 +257,8 @@ This mod uses or builds on the work of these people and projects. Thank you.
 - Microsoft's HLSL compiler (fxc, D3DCompiler) and WARP: reference shaders and the tests.
 - [Python](https://www.python.org) and [Pillow](https://python-pillow.org): the research scripts.
 - [IDA Pro](https://hex-rays.com/ida-pro) (Hex-Rays) and [ida-pro-mcp](https://github.com/mrexodia/ida-pro-mcp) (mrexodia): analyzing the game's code.
-- [Claude Code](https://claude.com/claude-code) (Anthropic): almost all of this mod's code, documentation and reverse
-  engineering was done by Claude; the author set the goals, steered and tested in game, and reviewed little of the
-  code.
+- [Claude Code](https://claude.com/claude-code) (Anthropic): this mod was fully vibe-coded with Claude Fable and Opus; its code,
+  documentation and reverse engineering are all Claude's, with little human review.
 
 **The game and trademarks**
 
