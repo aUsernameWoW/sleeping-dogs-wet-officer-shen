@@ -52,8 +52,12 @@ bug，本 mod 分别修复：
 受惊时会把伞扔掉），原版没有撑开的动作。拿着伞**长按 E**（游戏的“动作”键，手柄 Y，改过键位就跟着改）半秒，Wei
 播放路人撑伞时的上半身动作（这些动作在全局动作库里），伞也随之打开；再长按一次收起，收伞动作会顺手甩掉伞上
 的水。E 在游戏里本来还管反击、搭话、上车和叫出租车：按下的这个 E 如果游戏要用（出现了搭话提示，或者 Wei 因此
-开始反击、走向车门、叫车，或者他根本不在走路/站着），伞就不动；伞撑开时 E 只用来收伞，不会传给游戏（收起后
-要松开 E 才恢复），所以要上车得先收伞。F7 也能撑开/收起（调试用）。撑开期间 Wei 只能走路，按住 Shift 是快走；不能冲刺、攻击、抓人、捡东西、换武器、
+开始反击、走向车门、叫车，或者他根本不在走路/站着），伞就不动。伞撑开时 E 不会直接传给游戏（收起后要松开 E
+才恢复）：在车门边、出租车旁或搭话对象面前按下 E（也就是游戏正等着 E 的上车/打车/搭话提示），Wei 马上收伞，
+伞收好后（约 2 秒）再把这次按键原样交给游戏：短按上车或搭话，在出租车旁按住超过 1/3 秒是打车（短按则是抢
+司机的座位，和原版一样）；收伞期间离开了、提示没了，这次按键就作废。其他地方按住 E 半秒是收伞。坐出租车时
+Wei 是直接“贴”进后座的，这是原版的做法（带上车动画的那个节点被开发者关掉了），手里的武器也会带着。
+F7 也能撑开/收起（调试用）。撑开期间 Wei 只能走路，按住 Shift 是快走；不能冲刺、攻击、抓人、捡东西、换武器、
 跑酷或进掩体。这些限制用的都是游戏脚本本来就有的开关（`allow_jog`/`allow_sprint` 和按名字禁用的操作请求），
 收伞或伞离手时恢复；撑伞期间游戏自己改过的冲刺/慢跑开关（比如出入室内时的强制慢走）以游戏为准。伞本身的
 动作树下雨时会自动撑开（给路人用的），所以 Wei 手里那把伞的“是否在下雨”判定改为“是否撑着”，路人的伞不受
@@ -73,9 +77,12 @@ bug，本 mod 分别修复：
 - `ActionTreeComponent::update`：撑伞在玩家自己的动作树更新之后，更新它自己的上半身动作控制器（仿照游戏
   生成子控制器的 `SpawnTask`）。`IsRainingCondition::Match`：伞的“是否在下雨”判定。
   `TSCharacter::Mthd_allow_jog/allow_sprint`：脚本开关慢跑和冲刺的方法，撑伞期间记下游戏的改动。
-  长按 E 不需要额外的 hook：E 的按下状态直接读游戏的输入数据（`ReadControllerInputTask::Update` 读的那份），
-  “这个 E 游戏要不要用”用游戏自己的 `ActionController::IsPlaying`（动作树条件 `IsPlaying` 调用的函数）查 Wei
-  的动作树和处理按键的 PlayerAI 树，搭话提示看社交目标是否锁定（`TargetIsLocked` 条件读的同一处）。
+  `ReadControllerInputTask::Update`：PlayerAI 树里把手柄/键盘输入变成操作请求的任务。撑伞时在它读输入的那一刻
+  把 E 改成“没按”（交还按键时改成“刚按下”），游戏的两棵动作树都看不到真实的 E。只屏蔽请求不够：PlayerAI 树
+  在屏蔽生效之前就读到了请求，撑着伞照样能上车。E 的真实状态直接读游戏的输入数据；“这个 E 游戏要不要用”用
+  游戏自己的 `ActionController::IsPlaying`（动作树条件 `IsPlaying` 调用的函数）查 Wei 的动作树和处理按键的
+  PlayerAI 树，搭话提示看社交目标是否锁定（`TargetIsLocked` 条件读的同一处）；撑伞时游戏在等哪种 E，看 PlayerAI
+  树停在哪个提示节点（`InteractHandler\Prompts\...\Available`）。
 
 所有细节（结构偏移、着色器公式、调查过程）见 [CLAUDE.md](CLAUDE.md)（英文）；调查用的脚本（着色器解包、
 材质解析、RenderDoc 抓帧分析与离线预览）在 [research/](research/README.md)。
@@ -89,7 +96,7 @@ bug，本 mod 分别修复：
 | `[Wet] Gloss` | 0.10 | 同上，z 通道：额外的湿润光泽。 |
 | `[Wet] ActionWetness` | 1 | 让游泳等动作设置的湿度生效。 |
 | `[Wet] WetFootprints` | 25 | 上岸后留湿脚印的秒数，0 = 关闭。需要 `ActionWetness = 1`。 |
-| `[Umbrella] Enabled` | 1 | 撑伞：拿着伞时长按 E 撑开/收起（F7 也行），F9 把状态写进日志。旧版写进 ini 的 `Prototype = 0` 已经不再读取。 |
+| `[Umbrella] Enabled` | 1 | 撑伞：拿着伞时长按 E 撑开/收起（F7 也行），撑着伞在上车/打车/搭话提示处按 E 先收伞再交给游戏，F9 把状态写进日志。旧版写进 ini 的 `Prototype = 0` 已经不再读取。 |
 | `[Debug] Logging` | 1 | 写 `SDWet.log`；崩溃时另写 `SDWet-crash-<n>.dmp`。 |
 | `[Debug] LogWetnessTracks` | 0 | 记录每个湿度动作，以及之后玩家湿度的变化曲线。 |
 
@@ -103,7 +110,9 @@ bug，本 mod 分别修复：
 - `footprints: sim object ... soaked`、`first wet footprint`，以及上岸 `WetFootprints` 秒后的
   `... N wet footprints, M steps in water ...`：湿脚印从开始到结束的记录。
 - `umbrella:` 开头的行：撑伞的每一步（`E held ... s: open/close` 长按触发、`E held, but it's the game's: ...` 这次
-  E 归游戏的原因、`E kept from the game` / `E back to the game`、动作、伞的状态、慢走/快走切换、
+  E 归游戏的原因、`E kept from the game` / `E back to the game` / `E pressed for the game`、
+  `E pressed at the ... prompt with the umbrella open` 撑伞时在提示处按 E、`E goes to the game for the ... prompt`
+  收好伞后交还按键（或 `... the press is dropped` 作废及原因）、动作、伞的状态、慢走/快走切换、
   `player can [not] jog/sprint` 冲刺开关的每次变化及来源、`rain check for the umbrella in hand` 下雨判定）。
 - `crash:` 开头的行：崩溃时的位置和调用栈。游戏每次退出都会崩一次（原版问题，地址以 `488C` 结尾），这一条可以
   忽略。
@@ -238,8 +247,13 @@ plays the upper body animation pedestrians open theirs with (it lives in the sha
 umbrella opens; holding it again closes it, shaking the water off. E also counters, talks, gets into vehicles and
 hires taxis: when the game has a use for that press (the talk prompt is up, or the press made Wei counter, walk to
 a car door or hail a taxi, or he isn't walking or standing at all), the umbrella stays as it is. While it's open
-E only closes it and doesn't reach the game (again only once it's let go after closing), so close it before
-getting into a car. F7 opens and closes it too (for testing). While it's open Wei only walks, a brisk walk while Shift is held; no
+E doesn't go straight to the game (again only once it's let go after closing): pressed at a car door, a taxi or
+someone to talk to (where the game waits for E with its get-in, hire or talk prompt), Wei closes the umbrella at
+once, and when it's folded (about 2 s) the game gets that press as it was: a tap gets in or talks, holding it
+over 1/3 s at a taxi hires it (a tap there takes the driver's seat, as in the original). If he walked away or the
+prompt is gone by then, the press is dropped. Anywhere else, holding E half a second closes it. Taking a taxi,
+Wei is put straight into the back seat: the game's own way (the node with a get-in animation is switched off),
+and he keeps whatever he holds. F7 opens and closes it too (for testing). While it's open Wei only walks, a brisk walk while Shift is held; no
 sprinting, attacks, grabs, pickups, weapon changes, parkour or cover. All through switches the game's scripts
 already have (`allow_jog`/`allow_sprint`, action requests disabled by name), restored when it closes or leaves his
 hand; changes the game makes meanwhile (such as an interior's forced walk) win. The umbrella's own tree opens it
@@ -262,11 +276,15 @@ feature stays off and the log says `MISSING`. Hook points:
 - `ActionTreeComponent::update`: right after the player's own action tree, the umbrella updates an upper body
   action controller of its own (made the way the game's `SpawnTask` makes sub-controllers).
   `IsRainingCondition::Match`: the umbrella's rain check. `TSCharacter::Mthd_allow_jog/allow_sprint`: the scripts'
-  jog and sprint switches, noted while the umbrella is open. Holding E needs no further hook: whether E is held
-  comes straight from the game's input data (what `ReadControllerInputTask::Update` reads), and whether the game
-  has a use for it from the game's own `ActionController::IsPlaying` (what action tree `IsPlaying` conditions call)
-  on Wei's tree and on the PlayerAI tree that handles the buttons, plus whether a social target is locked (read
-  where the `TargetIsLocked` condition reads it), which is the talk prompt.
+  jog and sprint switches, noted while the umbrella is open. `ReadControllerInputTask::Update`: the PlayerAI tree's
+  task that turns the pad and keyboard into action requests. While the umbrella is open it reads E as released (as
+  just pressed when the press is handed over), so neither of the game's action trees sees the real E. Masking
+  the request wasn't enough: the PlayerAI tree reads requests before the mask applies, and Wei got into cars with
+  the umbrella open. Whether E is really held comes straight from the game's input data; whether the game has a use
+  for it from the game's own `ActionController::IsPlaying` (what action tree `IsPlaying` conditions call) on Wei's
+  tree and on the PlayerAI tree, plus whether a social target is locked (read where the `TargetIsLocked` condition
+  reads it), which is the talk prompt; which E the game waits for while the umbrella is open from the prompt node
+  the PlayerAI tree is at (`InteractHandler\Prompts\...\Available`).
 
 All the details (offsets, the shader's formula, how it was found) are in [CLAUDE.md](CLAUDE.md); the scripts
 used to find them (shader unpacking, material parsing, RenderDoc capture analysis and offline previews) are in
@@ -281,7 +299,7 @@ used to find them (shader unpacking, material parsing, RenderDoc capture analysi
 | `[Wet] Gloss` | 0.10 | The same for z: extra wet gloss. |
 | `[Wet] ActionWetness` | 1 | Let swimming and other actions set wetness. |
 | `[Wet] WetFootprints` | 25 | Seconds of wet footprints after climbing out of the water, 0 = off. Needs `ActionWetness = 1`. |
-| `[Umbrella] Enabled` | 1 | The umbrella: with one in hand, holding E opens/closes it (F7 too), F9 logs the state. The `Prototype = 0` older versions wrote into the ini is no longer read. |
+| `[Umbrella] Enabled` | 1 | The umbrella: with one in hand, holding E opens/closes it (F7 too); with it open, E at a get-in, hire or talk prompt closes it first and then goes to the game; F9 logs the state. The `Prototype = 0` older versions wrote into the ini is no longer read. |
 | `[Debug] Logging` | 1 | Write `SDWet.log`, and `SDWet-crash-<n>.dmp` on a crash. |
 | `[Debug] LogWetnessTracks` | 0 | Log every wetness action and the player's wetness afterwards. |
 
@@ -295,7 +313,9 @@ Restart the game after changing them.
 - `footprints: sim object ... soaked`, `first wet footprint`, and `WetFootprints` seconds out of the water
   `... N wet footprints, M steps in water ...`: the wet footprints from start to end.
 - `umbrella:` lines: each step of the umbrella (`E held ... s: open/close` for the hold, `E held, but it's the
-  game's: ...` with why that E was left to the game, `E kept from the game` / `E back to the game`, animations, the
+  game's: ...` with why that E was left to the game, `E kept from the game` / `E back to the game` / `E pressed for
+  the game`, `E pressed at the ... prompt with the umbrella open`, `E goes to the game for the ... prompt` once it's
+  closed (or `... the press is dropped` and why), animations, the
   umbrella's state, slow/brisk walk, every change to the jog/sprint switches and who made it as
   `player can [not] jog, ...`, and the `rain check for the umbrella in hand` answers).
 - `crash:` lines: where a crash happened, with the stack. The game crashes on every exit (an old problem of its

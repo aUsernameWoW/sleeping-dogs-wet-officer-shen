@@ -9,7 +9,8 @@ Status (2026-09-28): both fixes verified in game by the user ("working as expect
 over ~60 s after it stops; wet right after climbing out of the water, drying the same way. Wet footprints
 verified (at night). The umbrella works as designed after 4 test rounds (opening, walking only,
 rain, indoor/outdoor sprint) with F7; since 2026-10-04 holding E opens/closes it and it is on by default
-(`[Umbrella] Enabled`), not yet tested in game. README.md (players) and ADVANCED.md are written; README's download link
+(`[Umbrella] Enabled`), tested once (works; E at a car or taxi with it open still reached the game, fixed the same
+day, untested). README.md (players) and ADVANCED.md are written; README's download link
 (`releases/latest/download/SDWet.zip`) works once a CI prerelease is promoted to a full release. See
 **Handoff** at the end for what's left.
 
@@ -141,11 +142,41 @@ didn't want to edit them; hold E or F7 open/close, F9 dump):
   social target locked (the talk prompt; `TargetIsLockedCondition::Match` layout), or the PlayerAI controller
   playing `TapActions` / `InputPressed` / `Tap` → that press is the game's, logged, no toggle.
   `ActionController::IsPlaying(controller, &qStringHashUpper32(name), -1, true)` = what `IsPlayingCondition` calls
-  (for characters with an AI tree it checks the root context's controller). While open (and after closing until E
-  is released) the Action request is masked (`m_ActionRequestMask`), so E only closes it: no counter, talking or
-  getting into a car with it open (closing for vehicles: close first). Target types from the PDB:
-  ATTACKING 38, INTERACTIVE_PROP 40, SOCIAL 50, TRANSIT 57 (only SOCIAL used: whether the others are set loosely,
-  e.g. INTERACTIVE_PROP near any parked car, is unknown, and the outcome checks cover them).
+  (for characters with an AI tree it checks the root context's controller; it matches the last-segment IDs in
+  `m_PlayingNodeUID` +0x94 (count +0x90) of the controller and its spawns, so a name like `Available` matches any
+  handler's). Target types from the PDB: ATTACKING 38, INTERACTIVE_PROP 40, SOCIAL 50, TRANSIT 57 (only SOCIAL
+  used: whether the others are set loosely, e.g. INTERACTIVE_PROP near any parked car, is unknown, and the
+  outcome checks cover them).
+- **E while open** (2026-10-04, after the first hold-E test): E is kept from the game while the umbrella is open or
+  closing, and after closing until it's let go. Round 1 masked the Action request (`m_ActionRequestMask`): useless,
+  E still got Wei into cars (the umbrella vanished open, a closed one came back after getting out) and taxis.
+  `ActionRequestCondition::Match` reads the **AI controller's** `m_Intention` (`GetComponent<AICharacterController
+  BaseComponent>`), `ReadControllerInputTask::Update` (a PlayerAI task; this +0x48 = that component, `Intention::
+  operator=` into its +0x80 at the end) writes it, and the PlayerAI tree reads it before `AICharacterController
+  Component::Update` ANDs the mask in (only Wei's own tree gets the masked copy, `SetIntentionOnActionTreeComponent`).
+  Now `ReadControllerInputTask::Update` is hooked: around the original call, for the local player's task, the
+  `ActionDef_Action` input data of all 5 controllers reads `mActionTrue` 0 (hidden) or 1 with our `mOnSeconds`
+  (replayed), then is restored. E sets the Action and POI_Use requests there and nowhere else for gameplay (other
+  readers of `ActionDef_Action`: `getSignalValue` FIS_Y_BUTTON for `InputSignalCondition`, ProgressionTracker,
+  init). PC has no separate vehicle key: `gActionRequest_VehicleEnter` and `MultiAction_VehicleEnter` are unused.
+- **Close, then get in** (the user's wish, "收伞+上车"): E pressed while open (or opening/closing) while the PlayerAI
+  tree waits at a prompt node, `InteractHandler\Prompts\Vehicle\Default\Available`, `...\Vehicle\Boat\Available`,
+  `...\Taxi\Available` or `...\Socialize\Available` (found by pointer: a controller of the AI tree, or of its
+  running SpawnTasks, list `m_RunningSpawnTasksTmp` +0x50, list node +0x28 in the SpawnTask, its controller +0x120,
+  whose `m_currentNode` is one of them), starts Close_Umbrella at once. When the prop is folded (≥ 2.2 s, prop not
+  Opening/Opened; Close_Umbrella itself runs ~3 s) and the same prompt is still up, the press is handed to the game
+  as a fresh one (mOnSeconds from 0: charge 0 = ARS_ONESHOT on the first frame): as long as the player held it
+  (≥ 0.1 s; ≥ 0.6 s for a taxi hold ≥ 1/3 s), or until they let go if still held. Otherwise dropped and logged.
+  The prompts (`extract.ps1 act node InteractHandler`): Socialize\Tap = Action ARS_ONESHOT → `Taunt` request; Vehicle
+  \Default\Tap = Action ARS_CHARGE + `Locomotion` → InputHeld (pathfind to the door while held) / InputReleased →
+  Request (≤ 1.5 m) → `EnterVehicle` (220) every frame; Taxi\Tap → InputPressed\Charge: at 0.333 s still held →
+  InputHeld presses `EnterTaxi` (222) for 1/3 s, released earlier → the Vehicle InputReleased path (driver's seat).
+  The counter prompt isn't replayed (no fighting under the umbrella).
+- **Taxi entry is a teleport in the original**: `Vehicle\Interactions\Action\GetIn\Player\Taxi\Spawn` has
+  `UIPromptAsPassenger` (spawns `MoveToPassengerSeat`: `TargetAttachTrack` to `C_SeatSync03` with a 1/3 s blend,
+  plus the taxi ride) and `AsPassenger` (the real get-in animation `Content\GetIn\P1\Reg`), which is disabled by a
+  `False` condition. `GetIn\HelperFunctions\DropMeleeEquipped` is disabled too, so a melee weapon stays in hand in
+  the back seat; an open umbrella poked through the roof (the user's screenshot, 2026-10-04).
 - F7 with an umbrella in hand plays Open_Umbrella, then Male_Carry_Umbrella, on Wei in an ActionController of our
   own, updated right after his (`ActionTreeComponent::update` hook, like a SpawnTask); the pedestrians'
   TargetPlayTrack opens his umbrella. F7 again plays Close_Umbrella and stops the controller after ~2 s.
@@ -180,9 +211,13 @@ it behind our back, leaving sprint off. 3. F8 removed, rain check hooked: fixed;
 was opened indoors (force walk, above). 4. script hooks: "working as expected"; the log shows it opened indoors
 (`sprint 0 before`), `script allow_sprint set jog 1 sprint 1 while the umbrella is open` on walking out, and
 `jog 1 sprint 1` restored on closing.
+Hold E, 2026-10-04 (second machine, build-12): opening/closing by holding E works, no unexpected
+refusals; but with it open, E still got Wei into a car (umbrella vanished, a closed one came back after getting
+out) and a taxi (teleported in, umbrella open through the roof), and talking to a car park valet took the umbrella
+away ("无伤大雅"). Fixed as above (input hidden at the source, close then hand the press over); untested in game:
+check `E pressed at the ... prompt`, `E goes to the game ...` / `... dropped`, and whether the valet still takes it.
 Not done: closing for water/cutscenes (dropping the weapon ends it), staying dry under it (the look's rain
-wetness keeps rising), gamepad brisk walk. Hold E is untested in game: check the `E held ...` lines (refusals with
-their reason; whether walking near parked cars, a taxi or pedestrians refuses it wrongly).
+wetness keeps rising), gamepad brisk walk.
 
 Action tree runtime (from the PDB; layouts in umbrella.cc's header comment):
 - Each node path segment is `qStringHashUpper32`; `ActionNode::Find(ActionPath*, root)` walks from
@@ -255,8 +290,9 @@ Night scenes show the effect weakly (few highlights); judge `Shine`/`Gloss` in d
 
 ## Handoff: what's left (as of 2026-10-04)
 
-- **Umbrella, next**: hold E is written and on by default (2026-10-04, `[Umbrella] Enabled`, in README.md) but
-  untested in game; then auto-close cases (water, cutscenes), staying dry under it, gamepad brisk walk. Still to do
+- **Umbrella, next**: hold E works (2026-10-04, `[Umbrella] Enabled`, in README.md); close-then-get-in at car,
+  taxi and talk prompts is written but untested; then auto-close cases (water, cutscenes), staying dry under it,
+  gamepad brisk walk. Still to do
   once it settles: move the action tree runtime and umbrella details into `docs/action-trees.md` (like SDRadio's
   `docs/radio-internals.md`) and keep a summary here (agreed with the user).
 - **First full release**: promote a verified `build-<N>` prerelease (un-tick "Set as a pre-release") so the

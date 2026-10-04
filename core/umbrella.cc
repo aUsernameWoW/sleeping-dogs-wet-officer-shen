@@ -108,8 +108,24 @@ namespace umbrella
 	}
 
 	// The pedestrians' umbrella (GlobalActions\UpperBodySpawn\inventoryItem\Umbrella, run in a spawned upper
-	// body controller) and the umbrella prop's own tree (LOP_Umbrella002; the weapon is the same actor).
-	enum NodeIndex { kOpen, kCarry, kClose, kPropOpening, kPropClosing, kPropOpened, kPropClosed, kNodeCount };
+	// body controller), the umbrella prop's own tree (LOP_Umbrella002; the weapon is the same actor), and the
+	// prompts the PlayerAI tree waits in for E (ButtonHandlers\InteractHandler\Prompts\...\Available, one per use
+	// of E; its queries pick which: CarTruckEnterable/BikeEnterable, BoatEnterable, TaxiAvailable, SocialAvailable).
+	enum NodeIndex
+	{
+		kOpen,
+		kCarry,
+		kClose,
+		kPropOpening,
+		kPropClosing,
+		kPropOpened,
+		kPropClosed,
+		kPromptVehicle,
+		kPromptBoat,
+		kPromptTaxi,
+		kPromptTalk,
+		kNodeCount
+	};
 	struct Node
 	{
 		const char* mName;
@@ -124,6 +140,10 @@ namespace umbrella
 		{ "prop Closing", "\\Global\\LOP_Umbrella002\\Object\\Animation\\Closing" },
 		{ "prop Opened", "\\Global\\LOP_Umbrella002\\Object\\OnInit\\Opened" },
 		{ "prop Closed", "\\Global\\LOP_Umbrella002\\Object\\Closed" },
+		{ "vehicle", "\\Global\\PlayerAI\\Root\\ButtonHandlers\\InteractHandler\\Prompts\\Vehicle\\Default\\Available" },
+		{ "boat", "\\Global\\PlayerAI\\Root\\ButtonHandlers\\InteractHandler\\Prompts\\Vehicle\\Boat\\Available" },
+		{ "taxi", "\\Global\\PlayerAI\\Root\\ButtonHandlers\\InteractHandler\\Prompts\\Taxi\\Available" },
+		{ "talk", "\\Global\\PlayerAI\\Root\\ButtonHandlers\\InteractHandler\\Prompts\\Socialize\\Available" },
 	};
 	static bool gNodesResolved = false;
 
@@ -491,10 +511,11 @@ namespace umbrella
 		if (!gGetActionRequest("Sprint", &gSprintRequest) || gSprintRequest >= 9 * 64) {
 			gSprintRequest = UINT32_MAX;
 		}
-		// The request E sets, by name and as the input code sets it: they must agree, or E isn't what we read.
+		// The request E sets, by name and as the input code sets it: they should agree (logged only; the PlayerAI tree
+		// reads it as Action, 7).
 		if (!gGetActionRequest("Action", &gActionRequest) || gActionRequest >= 9 * 64 || !gActionRequestVar ||
 			*gActionRequestVar != gActionRequest) {
-			LOG("umbrella: the Action request (%d) isn't the one the input code sets (%d): E stays the game's",
+			LOG("umbrella: the Action request (%d) isn't the one the input code sets (%d)",
 				gActionRequest < 9 * 64 ? static_cast<int>(gActionRequest) : -1, gActionRequestVar ? static_cast<int>(*gActionRequestVar) : -1);
 			gActionRequest = UINT32_MAX;
 		}
@@ -718,43 +739,168 @@ namespace umbrella
 		return nullptr;
 	}
 
-	// While the umbrella is open E only closes it: the Action request is kept from the game (no counter, talking or
-	// getting into a vehicle with it open), and after it has closed until E is let go (a still-held E would reach
-	// the game as a vehicle tap or a taxi hold). AICharacterControllerComponent::m_ActionRequestMask, like the
-	// blocked requests.
-	struct ActionMask
-	{
-		uint8_t* mController = nullptr;
-		bool mSaved = false; // the request's bit before
-	};
-	static ActionMask gActionMask;
+	// While the umbrella is open E only closes it, and after it has closed E stays ours until let go (a still-held E
+	// would reach the game as a vehicle tap or a taxi hold). It is kept from the game where the game reads it:
+	// ReadControllerInputTask::Update (the PlayerAI tree's task that turns the buttons into the Action and POI_Use
+	// requests) sees it released. Masking the request (m_ActionRequestMask) wasn't enough: the PlayerAI tree reads
+	// the requests (ActionRequestCondition: the AI controller's m_Intention) before AICharacterControllerComponent::
+	// Update applies the mask, so E still got Wei into cars and taxis with the umbrella open (2026-10-04 test).
+	// Task: m_pAICharacterControllerComponent.m_pPointer +0x48 (its m_pSimObject +0x28). The input data's mOnSeconds
+	// (+0x40) is how long it's held: the request's charge (x60, so 0 on the first frame = ARS_ONESHOT, a tap).
+	enum class EInput { Real, Hidden, Replayed };
+	static std::atomic<EInput> gEInput{ EInput::Real };
+	static std::atomic<float> gReplayedSeconds{ 0.0f }; // mOnSeconds of the press we hand to the game
+	using ReadInputFn = bool(__fastcall*)(void* task, float delta);
+	static ReadInputFn gReadInput = nullptr;
 
-	static void MaskAction(void* player, bool want)
+	static bool __fastcall ReadInputHook(void* task, float delta)
 	{
-		ActionMask& m = gActionMask;
-		if (want && !m.mController) {
-			ResolveRequests();
-			uint8_t* controller = static_cast<uint8_t*>(Component(player, 21));
-			if (gActionRequest == UINT32_MAX || !controller || Read<void*>(controller, 0x28) != player) {
-				return;
+		const EInput mode = gEInput.load(std::memory_order_relaxed);
+		const uint8_t* controller = mode != EInput::Real ? Read<const uint8_t*>(task, 0x48) : nullptr;
+		if (!controller || Read<void*>(controller, 0x28) != *gLocalPlayer) {
+			return gReadInput(task, delta);
+		}
+		struct Saved
+		{
+			uint8_t* mData;
+			float mOnSeconds;
+			uint8_t mActionTrue;
+		} saved[5] = {};
+		const bool pressed = mode == EInput::Replayed;
+		for (int i = 0; i < 5; ++i) {
+			if (uint8_t* data = Read<uint8_t*>(gActionInput, i * 8)) {
+				saved[i] = { data, Read<float>(data, 0x40), Read<uint8_t>(data, 0x4C) };
+				Write<float>(data, 0x40, pressed ? gReplayedSeconds.load(std::memory_order_relaxed) : 0.0f);
+				Write<uint8_t>(data, 0x4C, pressed);
 			}
-			m.mController = controller;
-			m.mSaved = Bit(controller + 0x3D0, gActionRequest);
-			LOG("umbrella: E kept from the game");
 		}
-		if (!m.mController) {
+		const bool result = gReadInput(task, delta);
+		for (const Saved& s : saved) {
+			if (s.mData) {
+				Write<float>(s.mData, 0x40, s.mOnSeconds);
+				Write<uint8_t>(s.mData, 0x4C, s.mActionTrue);
+			}
+		}
+		return result;
+	}
+
+	// Which use of E the PlayerAI tree is waiting for: one of its controllers (its own or a spawned one, walked as
+	// ActionController::IsPlaying walks them: running SpawnTasks listed at +0x50, list node +0x28 in the task, its
+	// controller +0x120) at a prompt node. Node names alone don't tell (other handlers have "Available" nodes too).
+	static int PromptAt(const uint8_t* controller, int depth)
+	{
+		const void* current = Read<void*>(controller, 0x10);
+		for (int i = kPromptVehicle; i <= kPromptTalk; ++i) {
+			if (current && current == gNodes[i].mNode) {
+				return i;
+			}
+		}
+		const uint8_t* head = controller + 0x50;
+		const uint8_t* node = Read<const uint8_t*>(head, 8);
+		for (int n = 0; node && node != head && n < 64 && depth < 8; ++n, node = Read<const uint8_t*>(node, 8)) {
+			if (const int found = PromptAt(node - 0x28 + 0x120, depth + 1); found >= 0) {
+				return found;
+			}
+		}
+		return -1;
+	}
+
+	static int PromptUp(void* player)
+	{
+		const uint8_t* ai = static_cast<const uint8_t*>(Component(player, kAiTreeSlot));
+		return ai && Read<void*>(ai, 0x28) == player ? PromptAt(ai + kAiController, 0) : -1;
+	}
+
+	// E pressed on one of those prompts while the umbrella is open (the user's wish: close it, then get in): the
+	// umbrella closes first, then the game gets the press as if it began then. Held as long as the player held it, or
+	// for as long as they still hold it: a tap gets into a car or talks, holding at a taxi hires it (1/3 s in the
+	// PlayerAI tree, a tap there takes the driver's seat).
+	struct Replay
+	{
+		int mPrompt = -1;
+		float mHeld = 0.0f;     // how long the player held E for it
+		bool mReleased = false; // and let go
+		bool mActive = false;   // being handed to the game
+		bool mFollowed = false; // still held when handed over: it ends when let go
+		float mTime = 0.0f;     // into the press we hand over
+	};
+	static Replay gReplay;
+	static constexpr float kShortestPress = 0.1f;
+	static constexpr float kTaxiHold = 1.0f / 3.0f;
+	static constexpr float kTaxiReplay = 0.6f; // the hold node starts a frame or two after the press
+
+	static float ReplayLength()
+	{
+		if (!gReplay.mReleased) {
+			return 1e9f;
+		}
+		const float shortest = gReplay.mPrompt == kPromptTaxi && gReplay.mHeld >= kTaxiHold ? kTaxiReplay : kShortestPress;
+		const float length = gReplay.mFollowed ? 0.0f : gReplay.mHeld;
+		return length > shortest ? length : shortest;
+	}
+
+	static void StartReplay(void* player)
+	{
+		if (gReplay.mPrompt < 0) {
 			return;
 		}
-		const size_t word = 0x3D0 + (gActionRequest >> 6) * 8;
-		const uint64_t bit = 1ull << (gActionRequest & 63);
-		const uint64_t mask = Read<uint64_t>(m.mController, word) & ~bit;
-		if (want) {
-			Write<uint64_t>(m.mController, word, mask);
+		const int now = PromptUp(player);
+		if (now != gReplay.mPrompt) {
+			LOG("umbrella: the %s prompt is gone (now %s), the press is dropped", gNodes[gReplay.mPrompt].mName, now >= 0 ? gNodes[now].mName : "none");
+			gReplay = {};
 			return;
 		}
-		Write<uint64_t>(m.mController, word, mask | (m.mSaved ? bit : 0));
-		LOG("umbrella: E back to the game");
-		m = {};
+		gReplay.mActive = true;
+		gReplay.mFollowed = !gReplay.mReleased;
+		gReplay.mTime = 0.0f;
+		if (gReplay.mReleased) {
+			LOG("umbrella: E goes to the game for the %s prompt: a %.2f s press (held %.2f s)", gNodes[gReplay.mPrompt].mName, ReplayLength(),
+				gReplay.mHeld);
+		}
+		else {
+			LOG("umbrella: E goes to the game for the %s prompt: still held (%.2f s so far)", gNodes[gReplay.mPrompt].mName, gReplay.mHeld);
+		}
+	}
+
+	static void DropReplay(const char* why)
+	{
+		if (gReplay.mPrompt >= 0 && !gReplay.mActive) {
+			LOG("umbrella: the press on the %s prompt is dropped (%s)", gNodes[gReplay.mPrompt].mName, why);
+		}
+		gReplay = {};
+	}
+
+	// What ReadControllerInputTask gets of E next frame.
+	static void UpdateEInput(bool closed, float delta)
+	{
+		const bool held = ActionHeld();
+		// The player's hold, from the press on the prompt until let go (while closing and while handing it over).
+		if (gReplay.mPrompt >= 0 && !gReplay.mReleased) {
+			if (held) {
+				gReplay.mHeld += delta;
+			}
+			else {
+				gReplay.mReleased = true;
+			}
+		}
+		EInput mode = EInput::Real;
+		if (gReplay.mActive) {
+			if (gReplay.mTime >= ReplayLength()) {
+				LOG("umbrella: the press for the %s prompt is over after %.2f s", gNodes[gReplay.mPrompt].mName, gReplay.mTime);
+				gReplay = {};
+			}
+			else {
+				mode = EInput::Replayed;
+				gReplayedSeconds = gReplay.mTime;
+				gReplay.mTime += delta;
+			}
+		}
+		if (mode == EInput::Real && (!closed || gReplay.mPrompt >= 0 || (held && gEInput != EInput::Real))) {
+			mode = EInput::Hidden;
+		}
+		if (const EInput previous = gEInput.exchange(mode); previous != mode) {
+			LOG("umbrella: E %s", mode == EInput::Hidden ? "kept from the game" : mode == EInput::Replayed ? "pressed for the game" : "back to the game");
+		}
 	}
 
 	struct Hold
@@ -837,11 +983,16 @@ namespace umbrella
 			properties ? static_cast<unsigned long long>(Read<uint64_t>(properties, 0xF0)) : 0ull, aiController,
 			aiController ? static_cast<unsigned long long>(Read<uint64_t>(aiController, 0x3D0)) : 0ull, gRestrictions.mSim != nullptr);
 		const char* why = GameUsesE(player, playerAtc);
-		LOG("umbrella: E held %d (%.2f s%s), kept from the game %d; the game's use of E now: %s", ActionHeld(), gHold.mTime, gHold.mDone ? ", done" : "",
-			gActionMask.mController != nullptr, why ? why : "none");
+		const int prompt = PromptUp(player);
+		static constexpr const char* kModes[] = { "the player's", "kept from the game", "pressed for the game" };
+		LOG("umbrella: E held %d (%.2f s%s), the game gets %s; the game's use of E now: %s; prompt up: %s; press for a prompt: %s (held %.2f s%s%s)",
+			ActionHeld(), gHold.mTime, gHold.mDone ? ", done" : "", kModes[static_cast<int>(gEInput.load())], why ? why : "none",
+			prompt >= 0 ? gNodes[prompt].mName : "none", gReplay.mPrompt >= 0 ? gNodes[gReplay.mPrompt].mName : "none", gReplay.mHeld,
+			gReplay.mReleased ? ", let go" : "", gReplay.mActive ? ", handing over" : "");
 	}
 
-	static void Stop(const char* why)
+	// done: the closing animation is over (the only way a press waiting for a prompt goes to the game).
+	static void Stop(const char* why, bool done = false)
 	{
 		if (gLayer.mController) {
 			gStop(gLayer.mController);
@@ -849,9 +1000,20 @@ namespace umbrella
 		gState = State::Closed;
 		LOG("umbrella: closed (%s)", why);
 		Unrestrict();
+		if (!done) {
+			DropReplay(why);
+		}
 	}
 
+	static void Step(uint8_t* playerAtc, float delta);
+
 	static void Tick(uint8_t* playerAtc, float delta)
+	{
+		Step(playerAtc, delta);
+		UpdateEInput(gState == State::Closed, delta);
+	}
+
+	static void Step(uint8_t* playerAtc, float delta)
 	{
 		NoteGameChanges("the game");
 		void* player = Read<void*>(playerAtc, 0x28);
@@ -862,13 +1024,13 @@ namespace umbrella
 		if (dump) {
 			Dump(player, playerAtc);
 		}
-		if ((gState != State::Closed || gActionMask.mController) && player != gLayer.mSim) {
+		if ((gState != State::Closed || gReplay.mPrompt >= 0) && player != gLayer.mSim) {
 			// Another player object (a load): the old layer's tasks may point at the old one, and the old
 			// components may be gone; leave them alone.
 			gState = State::Closed;
 			gLayer = {};
 			gRestrictions = {};
-			gActionMask = {};
+			DropReplay("the player changed");
 			LOG("umbrella: the player changed, layer dropped");
 		}
 
@@ -876,8 +1038,11 @@ namespace umbrella
 		Prop prop;
 		const bool hasUmbrella = Umbrella(player, playerAtc, prop, keyToggle);
 
-		// Holding E opens or closes it, once per press, unless the game has a use for that E.
+		// Holding E opens or closes it, once per press, unless the game has a use for that E. With it open (E is
+		// kept from the game, so the PlayerAI tree still waits at its prompt), a press at a car, a taxi or someone
+		// to talk to closes it at once and goes to the game afterwards.
 		bool holdToggle = false;
+		bool closeForPrompt = false;
 		if (!ActionHeld()) {
 			gHold = {};
 		}
@@ -891,6 +1056,16 @@ namespace umbrella
 					LOG("umbrella: E held, but it's the game's: %s", why);
 				}
 			}
+			else if (gHold.mTime == 0.0f && gReplay.mPrompt < 0) {
+				if (const int prompt = PromptUp(player); prompt >= 0) {
+					gHold.mDone = true;
+					gReplay = {};
+					gReplay.mPrompt = prompt;
+					closeForPrompt = gState != State::Closing;
+					LOG("umbrella: E pressed at the %s prompt with the umbrella open: %s, then the press goes to the game", gNodes[prompt].mName,
+						closeForPrompt ? "closing it first" : "it's closing");
+				}
+			}
 			if (!gHold.mDone) {
 				gHold.mTime += delta;
 				if (gHold.mTime >= kHoldSeconds) {
@@ -900,7 +1075,7 @@ namespace umbrella
 				}
 			}
 		}
-		const bool toggle = keyToggle || holdToggle;
+		const bool toggle = keyToggle || holdToggle || closeForPrompt;
 		void* held = hasUmbrella ? prop.mSim : nullptr;
 		if (void* previous = gHeldUmbrella.exchange(held); previous != held) {
 			if (held) {
@@ -931,7 +1106,6 @@ namespace umbrella
 		if (gWantOpen.exchange(wantOpen) != wantOpen) {
 			gRainAnswers = 3; // log the next two answers
 		}
-		MaskAction(player, gState != State::Closed || (gActionMask.mController && ActionHeld()));
 
 		// The umbrella is open exactly while Wei holds it open: close one that is open anyway (picked up open,
 		// or opened by the rain before), and end our open state if it closed.
@@ -986,8 +1160,12 @@ namespace umbrella
 			LOG("umbrella: %.1f s: layer at %08X (%s), %.2f s in; prop at %08X (%s); Wei's own node %08X", gTime, NodeId(current), NodeName(current),
 				Read<float>(gLayer.mController, 0x20), NodeId(prop.Current()), NodeName(prop.Current()), NodeId(Read<void*>(playerAtc, 0xC0 + 0x10)));
 		}
-		if (gState == State::Closing && gTime >= 1.9f && (!current || gTime >= 3.0f)) {
-			Stop("closing done");
+		// Close_Umbrella runs ~3 s, the umbrella is folded by ~2 s (prop Closing at 1.6 s): a press waiting to get
+		// in doesn't wait for the arm to come down.
+		const bool folded = gReplay.mPrompt >= 0 && gTime >= 2.2f && !prop.IsOpen();
+		if (gState == State::Closing && gTime >= 1.9f && (!current || gTime >= 3.0f || folded)) {
+			Stop("closing done", true);
+			StartReplay(player);
 		}
 	}
 
@@ -1061,6 +1239,8 @@ namespace umbrella
 			// mov rdx, [rdi+rbx*8+ActionDef_Action] (rdi = image base, rbx = controller); test rdx, rdx; jz;
 			// cmp [rdx+4Ch], r13b (mActionTrue); jz; movss xmm0, [rdx+40h] (mOnSeconds); mov r9d, gActionRequest_Action
 			scan::Matches(readInput + 0x718, "48 8B 94 DF ? ? ? ? 48 85 D2 0F 84 ? ? ? ? 44 38 6A 4C 0F 84 ? ? ? ? F3 0F 10 42 40 44 8B 0D") &&
+			// mov r14, rcx (this); at the end mov rbx, [r14+48h] (m_pAICharacterControllerComponent), whose intention it sets
+			scan::Matches(readInput + 0x1C, "4C 8B F1") && scan::Matches(readInput + 0x1FCD, "49 8B 5E 48") &&
 			// lea rcx, [rbx+0D8h]; ...; call ActionController::Update
 			scan::Matches(aiUpdate + 0xB4, "48 8D 8B D8 00 00 00 0F 28 CE E8") &&
 			// mov rax, [rcx+68h]; mov rax, [rax+130h] (component slot 19)
@@ -1080,19 +1260,22 @@ namespace umbrella
 		gActionInput = reinterpret_cast<const uint8_t*>(GetModuleHandleW(nullptr)) + actionDef;
 		gActionRequestVar = static_cast<const uint32_t*>(scan::RipTarget(readInput + 0x718 + 35));
 
-		// The rain check first, so the update never runs without it.
+		// The rain check and the input first, so the update never runs without them.
 		if (MH_CreateHook(isRaining, reinterpret_cast<void*>(&IsRainingHook), reinterpret_cast<void**>(&gIsRaining)) != MH_OK ||
 			MH_EnableHook(isRaining) != MH_OK ||
+			MH_CreateHook(readInput, reinterpret_cast<void*>(&ReadInputHook), reinterpret_cast<void**>(&gReadInput)) != MH_OK ||
+			MH_EnableHook(readInput) != MH_OK ||
 			MH_CreateHook(allowJog, reinterpret_cast<void*>(&AllowJogHook), reinterpret_cast<void**>(&gAllowJog)) != MH_OK ||
 			MH_EnableHook(allowJog) != MH_OK ||
 			MH_CreateHook(allowSprint, reinterpret_cast<void*>(&AllowSprintHook), reinterpret_cast<void**>(&gAllowSprint)) != MH_OK ||
 			MH_EnableHook(allowSprint) != MH_OK ||
 			MH_CreateHook(update, reinterpret_cast<void*>(&AtcUpdateHook), reinterpret_cast<void**>(&gAtcUpdate)) != MH_OK ||
 			MH_EnableHook(update) != MH_OK) {
-			LOG("umbrella: hooking the rain check, allow_jog/allow_sprint or ActionTreeComponent::update failed, umbrella off");
+			LOG("umbrella: hooking the rain check, the input, allow_jog/allow_sprint or ActionTreeComponent::update failed, umbrella off");
 			return;
 		}
-		LOG("umbrella: hooked: with an umbrella in hand, holding E (the Action button) %.1f s opens/closes it, so does F7; F9 logs the state",
+		LOG("umbrella: hooked: with an umbrella in hand, holding E (the Action button) %.1f s opens/closes it, so does F7; E at a car, taxi or "
+			"talk prompt closes it first; F9 logs the state",
 			kHoldSeconds);
 	}
 }

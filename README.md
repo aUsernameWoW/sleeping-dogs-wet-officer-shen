@@ -20,7 +20,8 @@
 - 下雨时，衣服和皮肤会慢慢变湿，颜色变深、开始反光；雨停后大约一分钟内逐渐变干；
 - 从水里爬上岸时，Wei 浑身湿透，然后同样慢慢变干；
 - 上岸后的二十几秒里，走过的地方会留下湿脚印；
-- 下雨天路人受了惊吓会扔下手里的伞，捡起来以后**长按 E** 就能撑开，再长按 E 收起。撑着伞只能走路。
+- 下雨天路人受了惊吓会扔下手里的伞，捡起来以后**长按 E** 就能撑开，再长按 E 收起。撑着伞只能走路；
+  撑着伞在车门边、出租车旁或能搭话的人面前按 E，Wei 会先收伞再上车（打车、搭话）。
 
 湿身效果游戏本来就设计了，但在终极版里，大部分衣服和皮肤都看不出湿，游泳后也完全不湿。这个 mod 把它修好了。
 游戏的其他画面不受影响。
@@ -158,7 +159,8 @@ Makes characters in Sleeping Dogs: Definitive Edition **actually get wet** in th
 - climbing out of the water, Wei is soaked, and dries the same way;
 - for the first twenty-odd seconds out of the water, he leaves wet footprints;
 - in the rain, scared pedestrians drop their umbrellas: pick one up and **hold E** to open it, hold E again to close
-  it. Under it, Wei walks.
+  it. Under it, Wei walks; press E at a car door, a taxi or someone to talk to and he closes it first, then gets in
+  (hires the taxi, talks).
 
 The game was made with the wet look, but in the Definitive Edition most clothes and skin never look wet, and
 swimming doesn't make anyone wet at all. This mod fixes that. Nothing else in the game's look changes.
