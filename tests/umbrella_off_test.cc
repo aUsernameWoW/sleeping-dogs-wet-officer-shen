@@ -1,6 +1,6 @@
-// Loads SDWet.asi with an ini from before the umbrella was on by default, which says [Umbrella] Prototype = 0,
-// into a process that isn't the game: the umbrella must still be on (that key is no longer read), and its game
-// functions reported missing. argv[1] = path to the .asi (build.ps1 passes a sandbox copy).
+// Loads SDWet.asi with the umbrella switched off ([Umbrella] Enabled = 0) into a process that isn't the game: it
+// must say so and not look for the umbrella's game functions. argv[1] = path to the .asi (build.ps1 passes a sandbox
+// copy).
 
 #include <Windows.h>
 
@@ -12,7 +12,7 @@
 int main(int argc, char** argv)
 {
 	if (argc < 2) {
-		std::printf("usage: umbrella_load_test <SDWet.asi>\n");
+		std::printf("usage: umbrella_off_test <SDWet.asi>\n");
 		return 2;
 	}
 
@@ -23,7 +23,7 @@ int main(int argc, char** argv)
 	DeleteFileA((dir + "SDWet.log").c_str());
 	{
 		std::ofstream ini(dir + "SDWet.ini", std::ios::trunc);
-		ini << "[Umbrella]\nPrototype = 0\n";
+		ini << "[Umbrella]\nEnabled = 0\n";
 	}
 
 	HMODULE module = LoadLibraryA(argv[1]);
@@ -39,9 +39,8 @@ int main(int argc, char** argv)
 	std::printf("%s", contents.c_str());
 
 	const char* expected[] = {
-		"Umbrella=1",
-		"ActionTreeComponent::update: 0 matches",
-		"umbrella: game functions MISSING or not as expected, umbrella off",
+		"Umbrella=0",
+		"umbrella: off",
 	};
 	for (const char* line : expected) {
 		if (contents.find(line) == std::string::npos) {

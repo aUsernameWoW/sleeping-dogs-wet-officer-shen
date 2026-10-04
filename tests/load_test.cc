@@ -41,14 +41,14 @@ int main(int argc, char** argv)
 	std::printf("%s", contents.c_str());
 
 	const char* expected[] = {
-		"SDWet loaded (WetLook=1 Shine=0.050 Gloss=0.100 ActionWetness=1 WetFootprints=25 UmbrellaPrototype=0 LogWetnessTracks=0)",
+		"SDWet loaded (WetLook=1 Shine=0.050 Gloss=0.100 ActionWetness=1 WetFootprints=25 Umbrella=1 LogWetnessTracks=0)",
 		"Illusion::StageShader::LoadShader: 0 matches",
 		"LoadShader MISSING, wet look off",
 		"ApplyWetnessOrSweatTask::Begin: 0 matches",
 		"CharacterLookComponent::Update MISSING, swimming stays dry",
 		"CharacterEffectsComponent::HandleFootstep: 0 matches",
 		"HandleFootstep MISSING or not as expected, no wet footprints",
-		"umbrella: prototype off",
+		"umbrella: game functions MISSING or not as expected, umbrella off",
 	};
 	for (const char* line : expected) {
 		if (contents.find(line) == std::string::npos) {

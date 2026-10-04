@@ -67,6 +67,32 @@ namespace umbrella
 	static void** gLocalPlayer = nullptr;     // UFG::gSim.mpLocalPlayer.m_pPointer
 	static const void** gParameters = nullptr; // UEL::gCurrentParameters
 
+	// Hold E. The game's Action button (E, gamepad Y; remappable) is UFG::ActionDef_Action, an InputActionDef: an
+	// InputActionData* per controller [5], whose mActionTrue (+0x4C) is set while the button is held.
+	// ReadControllerInputTask::Update turns it into the Action request every frame (+ how long it's held), which is
+	// how the PlayerAI tree tells taps from holds. Read here directly, so it still works while the request is kept
+	// from the game.
+	static const uint8_t* gActionInput = nullptr;
+	static const uint32_t* gActionRequestVar = nullptr; // gActionRequest_Action.m_EnumValue, the request it sets
+	static constexpr float kHoldSeconds = 0.5f;          // the game's taxi hold (the same button) is 1/3 s
+
+	// What E does in the game, checked while it is held with the umbrella closed (see GameUsesE):
+	// - ActionController::IsPlaying(controller, ActionID (qStringHashUpper32 of a node name), most-used index or -1,
+	//   recurse into spawns): what IsPlayingCondition::Match calls.
+	// - The PlayerAI tree (AIActionTreeComponent, character component slot 19 per IsPlayingCondition::Match;
+	//   m_ActionController +0xD8 per AIActionTreeComponent::OnUpdate) handles E in ButtonHandlers\InteractHandler
+	//   (and a hold-to-enter twin): a counter plays TapActions, talking Prompts\Socialize\Tap, a taxi or a vehicle
+	//   ...\InputPressed.
+	// - TargetingSystemBaseComponent (slot 20): m_pTargets +0x58 (TargetingSimObject, 0x38 each: target +0x28, lock
+	//   +0x31), m_pTargetingMap +0x60 (index per eTargetTypeEnum at +0x8), as TargetIsLockedCondition::Match reads
+	//   them. A locked social target is the talk prompt.
+	using IsPlayingFn = bool(__fastcall*)(void* controller, const uint32_t* id, uint32_t mostUsedIndex, bool recurseOnSpawns);
+	static IsPlayingFn gIsPlaying = nullptr;
+	static constexpr int kAiTreeSlot = 19;
+	static constexpr size_t kAiController = 0xD8;
+	static constexpr int kTargetingSlot = 20;
+	static constexpr int kTargetSocial = 50; // eTARGET_TYPE_SOCIAL
+
 	template <typename T>
 	static T Read(const void* p, size_t offset)
 	{
@@ -427,6 +453,7 @@ namespace umbrella
 	static uint32_t gBlocked[kBlockedCount];
 	static size_t gBlockedFound = 0;
 	static uint32_t gSprintRequest = UINT32_MAX;
+	static uint32_t gActionRequest = UINT32_MAX;
 	static bool gRequestsResolved = false;
 
 	struct Restrictions
@@ -464,7 +491,15 @@ namespace umbrella
 		if (!gGetActionRequest("Sprint", &gSprintRequest) || gSprintRequest >= 9 * 64) {
 			gSprintRequest = UINT32_MAX;
 		}
-		LOG("umbrella: action requests: %s, Sprint=%d", list, gSprintRequest != UINT32_MAX ? static_cast<int>(gSprintRequest) : -1);
+		// The request E sets, by name and as the input code sets it: they must agree, or E isn't what we read.
+		if (!gGetActionRequest("Action", &gActionRequest) || gActionRequest >= 9 * 64 || !gActionRequestVar ||
+			*gActionRequestVar != gActionRequest) {
+			LOG("umbrella: the Action request (%d) isn't the one the input code sets (%d): E stays the game's",
+				gActionRequest < 9 * 64 ? static_cast<int>(gActionRequest) : -1, gActionRequestVar ? static_cast<int>(*gActionRequestVar) : -1);
+			gActionRequest = UINT32_MAX;
+		}
+		LOG("umbrella: action requests: %s, Sprint=%d, Action=%d", list, gSprintRequest != UINT32_MAX ? static_cast<int>(gSprintRequest) : -1,
+			gActionRequest != UINT32_MAX ? static_cast<int>(gActionRequest) : -1);
 	}
 
 	static void Restrict(void* player)
@@ -623,6 +658,112 @@ namespace umbrella
 		r = {};
 	}
 
+	// E held now, on any controller.
+	static bool ActionHeld()
+	{
+		for (int i = 0; gActionInput && i < 5; ++i) {
+			const uint8_t* data = Read<const uint8_t*>(gActionInput, i * 8);
+			if (data && Read<uint8_t>(data, 0x4C)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static bool Playing(void* controller, const char* node)
+	{
+		const uint32_t id = hash::Upper32(node);
+		return controller && gIsPlaying(controller, &id, UINT32_MAX, true);
+	}
+
+	static bool TargetLocked(void* sim, int type)
+	{
+		const uint8_t* targeting = static_cast<const uint8_t*>(Component(sim, kTargetingSlot));
+		if (!targeting || Read<void*>(targeting, 0x28) != sim) {
+			return false;
+		}
+		const uint8_t* map = Read<const uint8_t*>(targeting, 0x60);
+		const uint8_t* targets = Read<const uint8_t*>(targeting, 0x58);
+		if (!map || !targets) {
+			return false;
+		}
+		const uint8_t* target = targets + Read<uint8_t>(map, 8 + type) * 0x38;
+		return Read<void*>(target, 0x28) && Read<uint8_t>(target, 0x31);
+	}
+
+	// Why E, held with the umbrella closed, is the game's (a tap of it counters, talks, enters a vehicle; held, it
+	// hires a taxi): the talk prompt is up, the PlayerAI tree is acting on it, or Wei is busy with something else
+	// than walking or standing (then also in a vehicle, climbing, fighting...). Checked every frame of the hold, so
+	// whatever the press started stops the umbrella. Null: E is free for the umbrella.
+	static const char* GameUsesE(void* player, uint8_t* playerAtc)
+	{
+		if (!Playing(playerAtc + 0xC0, "Locomotion")) {
+			return "Wei isn't walking or standing (not in Locomotion)";
+		}
+		if (TargetLocked(player, kTargetSocial)) {
+			return "the talk prompt is up (social target locked)";
+		}
+		uint8_t* ai = static_cast<uint8_t*>(Component(player, kAiTreeSlot));
+		if (ai && Read<void*>(ai, 0x28) == player) {
+			if (Playing(ai + kAiController, "TapActions")) {
+				return "a counter (PlayerAI TapActions)";
+			}
+			if (Playing(ai + kAiController, "InputPressed")) {
+				return "a vehicle or a taxi (PlayerAI InputPressed)";
+			}
+			if (Playing(ai + kAiController, "Tap")) {
+				return "a prompt (PlayerAI Tap)";
+			}
+		}
+		return nullptr;
+	}
+
+	// While the umbrella is open E only closes it: the Action request is kept from the game (no counter, talking or
+	// getting into a vehicle with it open), and after it has closed until E is let go (a still-held E would reach
+	// the game as a vehicle tap or a taxi hold). AICharacterControllerComponent::m_ActionRequestMask, like the
+	// blocked requests.
+	struct ActionMask
+	{
+		uint8_t* mController = nullptr;
+		bool mSaved = false; // the request's bit before
+	};
+	static ActionMask gActionMask;
+
+	static void MaskAction(void* player, bool want)
+	{
+		ActionMask& m = gActionMask;
+		if (want && !m.mController) {
+			ResolveRequests();
+			uint8_t* controller = static_cast<uint8_t*>(Component(player, 21));
+			if (gActionRequest == UINT32_MAX || !controller || Read<void*>(controller, 0x28) != player) {
+				return;
+			}
+			m.mController = controller;
+			m.mSaved = Bit(controller + 0x3D0, gActionRequest);
+			LOG("umbrella: E kept from the game");
+		}
+		if (!m.mController) {
+			return;
+		}
+		const size_t word = 0x3D0 + (gActionRequest >> 6) * 8;
+		const uint64_t bit = 1ull << (gActionRequest & 63);
+		const uint64_t mask = Read<uint64_t>(m.mController, word) & ~bit;
+		if (want) {
+			Write<uint64_t>(m.mController, word, mask);
+			return;
+		}
+		Write<uint64_t>(m.mController, word, mask | (m.mSaved ? bit : 0));
+		LOG("umbrella: E back to the game");
+		m = {};
+	}
+
+	struct Hold
+	{
+		float mTime = 0.0f;
+		bool mDone = false; // toggled or left to the game: wait for the next press
+	};
+	static Hold gHold;
+
 	enum class State { Closed, Opening, Open, Closing };
 	static State gState = State::Closed;
 	static float gTime = 0.0f;
@@ -695,6 +836,9 @@ namespace umbrella
 		LOG("umbrella: properties %p (booleans 0x%llX), AI controller %p (mask word 0 0x%016llX), restricted %d", properties,
 			properties ? static_cast<unsigned long long>(Read<uint64_t>(properties, 0xF0)) : 0ull, aiController,
 			aiController ? static_cast<unsigned long long>(Read<uint64_t>(aiController, 0x3D0)) : 0ull, gRestrictions.mSim != nullptr);
+		const char* why = GameUsesE(player, playerAtc);
+		LOG("umbrella: E held %d (%.2f s%s), kept from the game %d; the game's use of E now: %s", ActionHeld(), gHold.mTime, gHold.mDone ? ", done" : "",
+			gActionMask.mController != nullptr, why ? why : "none");
 	}
 
 	static void Stop(const char* why)
@@ -712,24 +856,51 @@ namespace umbrella
 		NoteGameChanges("the game");
 		void* player = Read<void*>(playerAtc, 0x28);
 		const bool focus = GameHasFocus();
-		const bool toggle = Pressed(VK_F7, gKeyWasDown[0]) && focus;
+		const bool keyToggle = Pressed(VK_F7, gKeyWasDown[0]) && focus;
 		const bool dump = Pressed(VK_F9, gKeyWasDown[1]) && focus;
 
 		if (dump) {
 			Dump(player, playerAtc);
 		}
-		if (gState != State::Closed && player != gLayer.mSim) {
+		if ((gState != State::Closed || gActionMask.mController) && player != gLayer.mSim) {
 			// Another player object (a load): the old layer's tasks may point at the old one, and the old
 			// components may be gone; leave them alone.
 			gState = State::Closed;
 			gLayer = {};
 			gRestrictions = {};
+			gActionMask = {};
 			LOG("umbrella: the player changed, layer dropped");
 		}
 
 		// Which umbrella Wei holds, every frame: IsRainingHook answers for it.
 		Prop prop;
-		const bool hasUmbrella = Umbrella(player, playerAtc, prop, toggle);
+		const bool hasUmbrella = Umbrella(player, playerAtc, prop, keyToggle);
+
+		// Holding E opens or closes it, once per press, unless the game has a use for that E.
+		bool holdToggle = false;
+		if (!ActionHeld()) {
+			gHold = {};
+		}
+		else if (!gHold.mDone) {
+			if (gState == State::Closed && !hasUmbrella) {
+				gHold.mDone = true;
+			}
+			else if (gState == State::Closed) {
+				if (const char* why = GameUsesE(player, playerAtc)) {
+					gHold.mDone = true;
+					LOG("umbrella: E held, but it's the game's: %s", why);
+				}
+			}
+			if (!gHold.mDone) {
+				gHold.mTime += delta;
+				if (gHold.mTime >= kHoldSeconds) {
+					gHold.mDone = true;
+					holdToggle = gState != State::Closing;
+					LOG("umbrella: E held %.2f s: %s", gHold.mTime, gState == State::Closed ? "open" : gState == State::Closing ? "still closing" : "close");
+				}
+			}
+		}
+		const bool toggle = keyToggle || holdToggle;
 		void* held = hasUmbrella ? prop.mSim : nullptr;
 		if (void* previous = gHeldUmbrella.exchange(held); previous != held) {
 			if (held) {
@@ -760,6 +931,7 @@ namespace umbrella
 		if (gWantOpen.exchange(wantOpen) != wantOpen) {
 			gRainAnswers = 3; // log the next two answers
 		}
+		MaskAction(player, gState != State::Closed || (gActionMask.mController && ActionHeld()));
 
 		// The umbrella is open exactly while Wei holds it open: close one that is open anyway (picked up open,
 		// or opened by the rain before), and end our open state if it closed.
@@ -829,8 +1001,8 @@ namespace umbrella
 
 	void Install()
 	{
-		if (!gConfig.mUmbrellaPrototype) {
-			LOG("umbrella: prototype off");
+		if (!gConfig.mUmbrella) {
+			LOG("umbrella: off");
 			return;
 		}
 		uint8_t* update = scan::FindUnique("ActionTreeComponent::update",
@@ -873,14 +1045,40 @@ namespace umbrella
 		uint8_t* allowSprint = scan::FindUnique("TSCharacter::Mthd_allow_sprint",
 			"40 53 48 83 EC 20 48 8B 89 D0 00 00 00 48 8B DA 48 85 C9 74 3E 0F B7 41 4C 66 C1 E8 0E A8 01 74 32 E8 ? ? ? ? 48 85 C0 74 28 "
 			"48 8B 4B 60 48 8B 11 48 8B 4A 08 48 83 79 20 00 76 0E 48 83 88 F0 00 00 00 02");
+		// Hold E: the E handling and its offsets (see the comments at gActionInput and gIsPlaying).
+		gIsPlaying = reinterpret_cast<IsPlayingFn>(scan::FindUnique("ActionController::IsPlaying",
+			"40 53 48 81 EC 00 02 00 00 8B 1A 4C 8B D1 41 83 F8 FF"));
+		uint8_t* readInput = scan::FindUnique("ReadControllerInputTask::Update", "F3 0F 11 4C 24 10 55 41 56 48 8D AC 24 58 FC FF FF");
+		uint8_t* aiUpdate = scan::FindUnique("AIActionTreeComponent::OnUpdate",
+			"40 53 48 83 EC 30 48 8B D9 48 8B 49 28 0F 29 74 24 20 0F 28 F1 48 85 C9 74 10");
+		uint8_t* isPlayingMatch = scan::FindUnique("IsPlayingCondition::Match",
+			"48 89 5C 24 08 57 48 83 EC 20 48 8B F9 48 8B 4A 10 48 8B DA 0F B7 41 4C 66 C1 E8 0F");
+		uint8_t* lockedMatch = scan::FindUnique("TargetIsLockedCondition::Match",
+			"40 53 48 83 EC 20 48 8B D9 48 8B 4A 10 48 85 C9 0F 84 ? ? ? ? 0F B7 51 4C 0F B7 C2 66 C1 E8 0E A8 01 74 0D 48 8B 41 68 48 8B 90 40 01 00 "
+			"00 EB 4E 0F B7 C2 66 C1 E8 0F A8 01 74 0D 48 8B 41 68 48 8B 90 40 01 00 00 EB 36 0F B7 C2 66 C1 E8 0D A8 01 74 0D 8B 15 ? ? ? ? E8 ? ? ? ? "
+			"EB 1B 66 C1 EA 0C F6 C2 01 8B 15 ? ? ? ? 74 07 E8 ? ? ? ? EB 05 E8 ? ? ? ? 48 8B D0 48 85 D2 74 2C");
+		const bool holdOk = gIsPlaying && readInput && aiUpdate && isPlayingMatch && lockedMatch &&
+			// mov rdx, [rdi+rbx*8+ActionDef_Action] (rdi = image base, rbx = controller); test rdx, rdx; jz;
+			// cmp [rdx+4Ch], r13b (mActionTrue); jz; movss xmm0, [rdx+40h] (mOnSeconds); mov r9d, gActionRequest_Action
+			scan::Matches(readInput + 0x718, "48 8B 94 DF ? ? ? ? 48 85 D2 0F 84 ? ? ? ? 44 38 6A 4C 0F 84 ? ? ? ? F3 0F 10 42 40 44 8B 0D") &&
+			// lea rcx, [rbx+0D8h]; ...; call ActionController::Update
+			scan::Matches(aiUpdate + 0xB4, "48 8D 8B D8 00 00 00 0F 28 CE E8") &&
+			// mov rax, [rcx+68h]; mov rax, [rax+130h] (component slot 19)
+			scan::Matches(isPlayingMatch + 0x3C, "48 8B 41 68 48 8B 80 30 01 00 00") &&
+			// movzx r8d, byte [map+type+8]; imul r8, 38h; add r8, [targeting+58h]; cmp [r8+28h], 0; ...; cmp [r8+31h], 0
+			scan::Matches(lockedMatch + 0x85, "0F B6 4B 18 48 8B 42 60 44 0F B6 44 01 08 4D 6B C0 38 4C 03 42 58 49 83 78 28 00 74 0F 41 80 78 31 00");
 		ok = ok && gFind && gPlay && gControllerUpdate && gStop && gTimeBegin && gNewController && gNewContext && gAssignContext && gAllocateFor &&
-			gRootInit && gGetTarget && gGetActionRequest && isRaining && allowJog && allowSprint;
+			gRootInit && gGetTarget && gGetActionRequest && isRaining && allowJog && allowSprint && holdOk;
 		if (!ok) {
-			LOG("umbrella: game functions MISSING or not as expected, prototype off");
+			LOG("umbrella: game functions MISSING or not as expected, umbrella off");
 			return;
 		}
 		gParameters = static_cast<const void**>(scan::RipTarget(update + 0x37));
 		gLocalPlayer = static_cast<void**>(scan::RipTarget(subjectPosition + 0xD));
+		int32_t actionDef;
+		std::memcpy(&actionDef, readInput + 0x718 + 4, sizeof(actionDef));
+		gActionInput = reinterpret_cast<const uint8_t*>(GetModuleHandleW(nullptr)) + actionDef;
+		gActionRequestVar = static_cast<const uint32_t*>(scan::RipTarget(readInput + 0x718 + 35));
 
 		// The rain check first, so the update never runs without it.
 		if (MH_CreateHook(isRaining, reinterpret_cast<void*>(&IsRainingHook), reinterpret_cast<void**>(&gIsRaining)) != MH_OK ||
@@ -891,9 +1089,10 @@ namespace umbrella
 			MH_EnableHook(allowSprint) != MH_OK ||
 			MH_CreateHook(update, reinterpret_cast<void*>(&AtcUpdateHook), reinterpret_cast<void**>(&gAtcUpdate)) != MH_OK ||
 			MH_EnableHook(update) != MH_OK) {
-			LOG("umbrella: hooking the rain check, allow_jog/allow_sprint or ActionTreeComponent::update failed, prototype off");
+			LOG("umbrella: hooking the rain check, allow_jog/allow_sprint or ActionTreeComponent::update failed, umbrella off");
 			return;
 		}
-		LOG("umbrella: prototype hooked: with an umbrella in hand F7 opens/closes it, F9 logs the state");
+		LOG("umbrella: hooked: with an umbrella in hand, holding E (the Action button) %.1f s opens/closes it, so does F7; F9 logs the state",
+			kHoldSeconds);
 	}
 }

@@ -19,9 +19,10 @@
 
 - 下雨时，衣服和皮肤会慢慢变湿，颜色变深、开始反光；雨停后大约一分钟内逐渐变干；
 - 从水里爬上岸时，Wei 浑身湿透，然后同样慢慢变干；
-- 上岸后的二十几秒里，走过的地方会留下湿脚印。
+- 上岸后的二十几秒里，走过的地方会留下湿脚印；
+- 下雨天路人受了惊吓会扔下手里的伞，捡起来以后**长按 E** 就能撑开，再长按 E 收起。撑着伞只能走路。
 
-游戏本来就设计了这个效果，但在终极版里，大部分衣服和皮肤都看不出湿，游泳后也完全不湿。这个 mod 把它修好了。
+湿身效果游戏本来就设计了，但在终极版里，大部分衣服和皮肤都看不出湿，游泳后也完全不湿。这个 mod 把它修好了。
 游戏的其他画面不受影响。
 
 状态：**早期版本**。在作者的电脑上测试正常。
@@ -86,6 +87,10 @@ SleepingDogsDefinitiveEdition\
 
 同样在 `plugins\SDWet.ini` 里，改 `WetFootprints`（上岸后留脚印的秒数，默认 25，0 就是不留），保存后重启游戏。
 
+**不想要撑伞**
+
+在 `plugins\SDWet.ini` 的 `[Umbrella]` 下面写上 `Enabled = 0`，保存后重启游戏。
+
 **`plugins` 里没有 `SDWet.log`**
 
 说明 mod 没被加载：检查 `dinput8.dll` 是否和 `sdhdship.exe` 在同一层，杀毒软件有没有删掉它（ASI 加载器偶尔
@@ -118,8 +123,8 @@ SleepingDogsDefinitiveEdition\
 - [SDmodding](https://github.com/SDmodding)，几乎全部出自 [sneakyevil](https://github.com/sneakyevil) 一人之手。这个 mod 用到了：
   - SDmodding 随 [SDK](https://github.com/SDmodding/SDK) 发布的 [Visual Studio 2022 项目模板](https://github.com/SDmodding/SDK/releases/tag/vs2022)：这个 mod 的 Visual Studio 工程源自这个模板，编译设置和以 `dllmain.cc` 为起点的源文件结构都来自它；
   - SDmodding 分享的游戏 v1.0 版 exe 和调试符号（PDB，Steam 首发版自带）：函数特征码和游戏的数据结构都是从这里查到的；
-  - [SDK](https://github.com/SDmodding/SDK) 和 [TheoryEngine](https://github.com/SDmodding/TheoryEngine)：材质与着色器资源的结构，以及游戏的字符串哈希；
-  - [Files](https://github.com/SDmodding/Files) 里导出的动作树（ActionNodes）：雨伞原型；
+  - [SDK](https://github.com/SDmodding/SDK) 和 [TheoryEngine](https://github.com/SDmodding/TheoryEngine)：材质与着色器资源的结构，以及游戏的字符串哈希；SDK 里的游戏输入（E 键对应的 `ActionDef_Action` 及其数据结构）和目标类型列表：长按 E 撑伞；
+  - [Files](https://github.com/SDmodding/Files) 里导出的动作树（ActionNodes）：撑伞；
   - [BigFileSystem](https://github.com/SDmodding/BigFileSystem)、[TheoryEngine](https://github.com/SDmodding/TheoryEngine)，以及 sneakyevil 的 [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) 和 [Ekey](https://github.com/Ekey) 的 SDDEUnpacker 里的文件名列表：
     读取游戏资源包（`.big`）的工具是照着它们写的，研究脚本（`research/`）用它读取游戏的材质、着色器和贴图。
 
@@ -151,9 +156,11 @@ Makes characters in Sleeping Dogs: Definitive Edition **actually get wet** in th
 - in the rain, clothes and skin slowly get wet: darker and glossy; after the rain stops they dry within about a
   minute;
 - climbing out of the water, Wei is soaked, and dries the same way;
-- for the first twenty-odd seconds out of the water, he leaves wet footprints.
+- for the first twenty-odd seconds out of the water, he leaves wet footprints;
+- in the rain, scared pedestrians drop their umbrellas: pick one up and **hold E** to open it, hold E again to close
+  it. Under it, Wei walks.
 
-The game was made with this effect, but in the Definitive Edition most clothes and skin never look wet, and
+The game was made with the wet look, but in the Definitive Edition most clothes and skin never look wet, and
 swimming doesn't make anyone wet at all. This mod fixes that. Nothing else in the game's look changes.
 
 Status: **early**. Works on the author's PC.
@@ -220,6 +227,10 @@ the game as is), save and restart the game. Every setting is explained in the fi
 In the same `plugins\SDWet.ini`, change `WetFootprints` (seconds of footprints after climbing out; default 25,
 0 = none), save and restart the game.
 
+**No umbrella wanted**
+
+In `plugins\SDWet.ini`, write `Enabled = 0` under `[Umbrella]`, save and restart the game.
+
 **There's no `SDWet.log` in `plugins`**
 
 The mod wasn't loaded: check that `dinput8.dll` is next to `sdhdship.exe` and that your antivirus didn't remove
@@ -253,8 +264,8 @@ This mod uses or builds on the work of these people and projects. Thank you.
   - the [Visual Studio 2022 project template](https://github.com/SDmodding/SDK/releases/tag/vs2022) released with SDmodding's [SDK](https://github.com/SDmodding/SDK): the mod's Visual Studio project derives from it, including its build settings and the source layout that starts at `dllmain.cc`;
   - the game's v1.0 exe and its debug symbols (PDB, shipped with the original Steam release), shared by
     SDmodding: the function signatures and the game's data structures come from them;
-  - the [SDK](https://github.com/SDmodding/SDK) and [TheoryEngine](https://github.com/SDmodding/TheoryEngine): the material and shader resource layouts, and the game's string hash;
-  - the action trees (ActionNodes) exported in [Files](https://github.com/SDmodding/Files): the umbrella prototype;
+  - the [SDK](https://github.com/SDmodding/SDK) and [TheoryEngine](https://github.com/SDmodding/TheoryEngine): the material and shader resource layouts, and the game's string hash; the SDK's game input (`ActionDef_Action`, the E key, and its data layout) and list of target types: holding E for the umbrella;
+  - the action trees (ActionNodes) exported in [Files](https://github.com/SDmodding/Files): the umbrella;
   - [BigFileSystem](https://github.com/SDmodding/BigFileSystem), [TheoryEngine](https://github.com/SDmodding/TheoryEngine), and the file name lists in sneakyevil's [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) and in [Ekey](https://github.com/Ekey)'s
     SDDEUnpacker: the tool that reads the game's `.big` archives follows them; the research scripts (`research/`) read the game's materials, shaders and textures with it.
 

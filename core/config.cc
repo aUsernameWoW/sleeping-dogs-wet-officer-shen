@@ -39,10 +39,10 @@ namespace config
 		"WetFootprints = 25\n"
 		"\n"
 		"[Umbrella]\n"
-		"; 撑伞原型（测试中，1 = 开启）：手里拿着伞时，F7 撑开/收起（撑伞时只能走，按住 Shift 快走），F9 把状态写进日志。\n"
-		"; Umbrella prototype (testing, 1 = on): with an umbrella in hand, F7 opens/closes it (walking only while it's\n"
-		"; open, hold Shift for a brisk walk), F9 logs the state.\n"
-		"Prototype = 0\n"
+		"; 手里拿着伞时长按 E（手柄 Y）撑开/收起。撑着伞只能走（按住 Shift 快走），这时 E 只用来收伞。0 = 关闭。\n"
+		"; With an umbrella in hand, hold E (gamepad Y) to open or close it. Under it Wei only walks (hold Shift for a\n"
+		"; brisk walk), and E only closes it. 0 = off.\n"
+		"Enabled = 1\n"
 		"\n"
 		"[Debug]\n"
 		"; 在 .asi 旁边写 SDWet.log。 / Write SDWet.log.\n"
@@ -91,7 +91,8 @@ namespace config
 		gConfig.mGloss = ReadFloat(L"Wet", L"Gloss", gConfig.mGloss);
 		gConfig.mActionWetness = ReadBool(L"Wet", L"ActionWetness", gConfig.mActionWetness);
 		gConfig.mWetFootprints = ReadFloat(L"Wet", L"WetFootprints", gConfig.mWetFootprints);
-		gConfig.mUmbrellaPrototype = ReadBool(L"Umbrella", L"Prototype", gConfig.mUmbrellaPrototype);
+		// Not "Prototype", the key while it was off by default: inis written then say Prototype = 0.
+		gConfig.mUmbrella = ReadBool(L"Umbrella", L"Enabled", gConfig.mUmbrella);
 		gConfig.mLogging = ReadBool(L"Debug", L"Logging", gConfig.mLogging);
 		gConfig.mLogWetnessTracks = ReadBool(L"Debug", L"LogWetnessTracks", gConfig.mLogWetnessTracks);
 	}

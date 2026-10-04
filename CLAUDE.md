@@ -7,9 +7,9 @@ user's choice).
 
 Status (2026-09-28): both fixes verified in game by the user ("working as expected"): wet in the rain, drying
 over ~60 s after it stops; wet right after climbing out of the water, drying the same way. Wet footprints
-verified (at night). The umbrella prototype works as designed after 4 test rounds (opening, walking only,
-rain, indoor/outdoor sprint); the trigger is still F7, and it is off by default in public builds until it's
-finished. README.md (players) and ADVANCED.md are written; README's download link
+verified (at night). The umbrella works as designed after 4 test rounds (opening, walking only,
+rain, indoor/outdoor sprint) with F7; since 2026-10-04 holding E opens/closes it and it is on by default
+(`[Umbrella] Enabled`), not yet tested in game. README.md (players) and ADVANCED.md are written; README's download link
 (`releases/latest/download/SDWet.zip`) works once a CI prerelease is promoted to a full release. See
 **Handoff** at the end for what's left.
 
@@ -23,7 +23,7 @@ Two independent bugs:
 
 Plus additions (the user's ideas): wet footprints for `WetFootprints` (25) seconds after swimming →
 `core/footprints.cc` (2026-09-27; works per the user, tested at night only); not a bug fix, the original never
-leaves prints after a swim. An umbrella Wei can open → `core/umbrella.cc`, a prototype (see below).
+leaves prints after a swim. An umbrella Wei can open → `core/umbrella.cc` (see below).
 
 ## How the game does wetness (legacy addresses, see the workspace CLAUDE.md for the builds)
 
@@ -105,14 +105,14 @@ leaves prints after a swim. An umbrella Wei can open → `core/umbrella.cc`, a p
   `WetFootprints` game seconds (rain keeps wetness at 1) or when wetness drops below the threshold (a track
   setting it low); entries whose look stopped updating expire after 10 s. Logs soaked / first print / end with
   counts. Any soaking track counts, so a cutscene that soaks Wei would give prints after it too (untested).
-- `core/umbrella.cc`: the umbrella prototype, below. Its signatures are passed to `scan::FindUnique` literally so
+- `core/umbrella.cc`: the umbrella, below. Its signatures are passed to `scan::FindUnique` literally so
   `tools\pdb.ps1 verify` checks them; offsets it relies on inside functions are checked with `scan::Matches`.
 - `core/crash.cc` (copied from SDRadio): with `Logging`, a vectored handler logs the first access violations with
   a stack and writes `SDWet-crash-<n>.dmp`. The game's exit crash (execute at `...488C`, see the workspace
   CLAUDE.md) shows up there on every exit.
 - `core/hash.hh`: `qStringHash32` / `qStringHashUpper32` as constexpr (effect IDs, node names, track classes).
 
-## Umbrella prototype (`core/umbrella.cc`, 2026-09-28, round 4 verified)
+## Umbrella (`core/umbrella.cc`, 2026-09-28 round 4 verified with F7; hold E 2026-10-04)
 
 The user's idea: open the umbrella Wei holds (eventually by holding E). Wei can hold an umbrella only as a melee
 weapon (`object-physical-weapon-melee-umbrella`, actor `LOP_Umbrella002`, the same prop pedestrians carry and drop
@@ -123,8 +123,29 @@ End 1.333; a TargetPlayTrack at 0.433 s plays the prop's Opening on target type 
 `...\Cycle\Male_Carry_Umbrella` (group `Pedestrian_Upright`, loops) and `...\Close\Close_Umbrella` (shakes the water
 off; TargetPlayTrack at 1.6 s plays Closing), requested by their AI and run in a spawned upper body controller.
 
-What it does now (ini `[Umbrella] Prototype`, default 0 until finished, the user's choice; F7 open/close, F9
-dump):
+What it does now (ini `[Umbrella] Enabled`, default 1 since 2026-10-04; until then `Prototype`, default 0, which
+published inis say explicitly, so the key was renamed: the user tests on a second machine with default inis and
+didn't want to edit them; hold E or F7 open/close, F9 dump):
+- **Hold E** (2026-10-04, the user's design: "长按 E"): E is the game's Action button, `UFG::ActionDef_Action`
+  (an `InputActionDef`: `InputActionData*` per controller [5]; `mActionTrue` +0x4C while held, `mOnSeconds` +0x40).
+  `ReadControllerInputTask::Update` (+0x718: `mov rdx, [rdi+rbx*8+ActionDef_Action]`, rdi = image base, the disp32
+  is the RVA; then `mov r9d, gActionRequest_Action`) sets the Action request every frame while it's held, with the
+  held time (×60, max 255) as its charge: ARS_ONESHOT/ARS_CHARGE in conditions are press/held. We read the input
+  data, any controller, so remapping and gamepad Y work and masking the request doesn't hide it. 0.5 s held → toggle,
+  once per press. E also counters, talks, enters vehicles and hires taxis (hold 1/3 s): the PlayerAI tree
+  (`Player_behaviour.act`, AIActionTreeComponent = character slot 19, controller +0xD8) handles it in
+  `ButtonHandlers\InteractHandler` (Prompts: AttackCounter, Socialize, Taxi, Vehicle under `Query(ValidLocomotionState)`;
+  WaitForTap → TapActions) and a twin `0xAE51F4F2` (ChargeActions = hold to enter). A vehicle press walks Wei to
+  the door at once (`InputPressed\InputHeld` spawns MoveDirectlyToInteractionPoint), release gets in. So while the
+  umbrella is closed, every frame of the hold checks `GameUsesE`: Wei's own tree not playing `Locomotion`, the
+  social target locked (the talk prompt; `TargetIsLockedCondition::Match` layout), or the PlayerAI controller
+  playing `TapActions` / `InputPressed` / `Tap` → that press is the game's, logged, no toggle.
+  `ActionController::IsPlaying(controller, &qStringHashUpper32(name), -1, true)` = what `IsPlayingCondition` calls
+  (for characters with an AI tree it checks the root context's controller). While open (and after closing until E
+  is released) the Action request is masked (`m_ActionRequestMask`), so E only closes it: no counter, talking or
+  getting into a car with it open (closing for vehicles: close first). Target types from the PDB:
+  ATTACKING 38, INTERACTIVE_PROP 40, SOCIAL 50, TRANSIT 57 (only SOCIAL used: whether the others are set loosely,
+  e.g. INTERACTIVE_PROP near any parked car, is unknown, and the outcome checks cover them).
 - F7 with an umbrella in hand plays Open_Umbrella, then Male_Carry_Umbrella, on Wei in an ActionController of our
   own, updated right after his (`ActionTreeComponent::update` hook, like a SpawnTask); the pedestrians'
   TargetPlayTrack opens his umbrella. F7 again plays Close_Umbrella and stops the controller after ~2 s.
@@ -159,8 +180,9 @@ it behind our back, leaving sprint off. 3. F8 removed, rain check hooked: fixed;
 was opened indoors (force walk, above). 4. script hooks: "working as expected"; the log shows it opened indoors
 (`sprint 0 before`), `script allow_sprint set jog 1 sprint 1 while the umbrella is open` on walking out, and
 `jog 1 sprint 1` restored on closing.
-Not done: hold-E trigger (E also enters vehicles and interacts), closing for vehicles/water/cutscenes (dropping
-the weapon ends it), staying dry under it (the look's rain wetness keeps rising), gamepad brisk walk.
+Not done: closing for water/cutscenes (dropping the weapon ends it), staying dry under it (the look's rain
+wetness keeps rising), gamepad brisk walk. Hold E is untested in game: check the `E held ...` lines (refusals with
+their reason; whether walking near parked cars, a taxi or pedestrians refuses it wrongly).
 
 Action tree runtime (from the PDB; layouts in umbrella.cc's header comment):
 - Each node path segment is `qStringHashUpper32`; `ActionNode::Find(ActionPath*, root)` walks from
@@ -189,7 +211,8 @@ Action tree runtime (from the PDB; layouts in umbrella.cc's header comment):
 - `game_shaders_test`: all of the installed game's `shaders.temp.bin` (skips without the game): checksums,
   exactly the 28 `_WS` character permutations patched, each accepted by D3D11.
 - `load_test`: loads the .asi outside the game: default ini, and every feature reports its functions missing.
-- `umbrella_load_test`: the same with `[Umbrella] Prototype = 1` written first (the prototype's install path).
+- `umbrella_load_test`: an old ini (`[Umbrella] Prototype = 0`): still on, functions reported missing.
+- `umbrella_off_test`: `[Umbrella] Enabled = 0`: off, nothing looked for.
 
 ## CI (`.github\`, copied from SDAtmos 2026-09-28)
 
@@ -226,17 +249,16 @@ the game runs). Quick checks: F6 (SDAtmos' debug key) forces rain; wetness reach
 in vehicles, not under cover, needs sky irradiance > 0.2) and dries in 60 s. For swimming, jump into the sea
 anywhere along the harbour. `LogWetnessTracks = 1` in the user's ini logs the tracks and a wetness curve.
 Footprints: climb out, walk and look back; the log's `footprints:` lines count prints and in-water steps.
-Umbrella: F6 rain makes pedestrians carry umbrellas; hit or scare one and pick it up. F7 opens/closes, F9 logs
-nodes, action request indices and the jog/sprint switches.
+Umbrella: F6 rain makes pedestrians carry umbrellas; hit or scare one and pick it up. Hold E (or F7) opens/closes,
+F9 logs nodes, action request indices, the jog/sprint switches and the hold state with the game's current use of E.
 Night scenes show the effect weakly (few highlights); judge `Shine`/`Gloss` in daylight or under street lights.
 
-## Handoff: what's left (as of 2026-09-28)
+## Handoff: what's left (as of 2026-10-04)
 
-- **Umbrella, next** (round 4 verified 2026-09-28): hold-E trigger, auto-close cases, staying dry under it,
-  gamepad. When finished: default `Prototype` to 1, mention it in README.md, move the action tree runtime and
-  umbrella details into `docs/action-trees.md` (like SDRadio's `docs/radio-internals.md`) and keep a summary
-  here (agreed with the user). The user's own `plugins\SDWet.ini` has no `[Umbrella]` section, so the new
-  default turns the prototype off for them too; they add `Prototype = 1` themselves.
+- **Umbrella, next**: hold E is written and on by default (2026-10-04, `[Umbrella] Enabled`, in README.md) but
+  untested in game; then auto-close cases (water, cutscenes), staying dry under it, gamepad brisk walk. Still to do
+  once it settles: move the action tree runtime and umbrella details into `docs/action-trees.md` (like SDRadio's
+  `docs/radio-internals.md`) and keep a summary here (agreed with the user).
 - **First full release**: promote a verified `build-<N>` prerelease (un-tick "Set as a pre-release") so the
   README's `releases/latest/download/SDWet.zip` works. Add screenshots (before/after in daylight) to README.md.
 - **Nexus page** (optional, like the other mods): create it, then set the `NEXUS_*` variables and

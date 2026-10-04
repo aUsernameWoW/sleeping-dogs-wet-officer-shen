@@ -43,8 +43,8 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, LPVOID)
 			crash::Install(dir);
 		}
 
-		LOG("SDWet loaded (WetLook=%d Shine=%.3f Gloss=%.3f ActionWetness=%d WetFootprints=%.0f UmbrellaPrototype=%d LogWetnessTracks=%d)",
-			gConfig.mWetLook, gConfig.mShine, gConfig.mGloss, gConfig.mActionWetness, gConfig.mWetFootprints, gConfig.mUmbrellaPrototype,
+		LOG("SDWet loaded (WetLook=%d Shine=%.3f Gloss=%.3f ActionWetness=%d WetFootprints=%.0f Umbrella=%d LogWetnessTracks=%d)",
+			gConfig.mWetLook, gConfig.mShine, gConfig.mGloss, gConfig.mActionWetness, gConfig.mWetFootprints, gConfig.mUmbrella,
 			gConfig.mLogWetnessTracks);
 
 		// Before the game's main runs (the ASI loader loads us from dinput8.dll, a static import), so the

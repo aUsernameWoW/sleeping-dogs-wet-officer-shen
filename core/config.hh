@@ -18,9 +18,8 @@ struct Config
 	// core/footprints.cc. Needs mActionWetness.
 	float mWetFootprints = 25.0f;
 
-	// Prototype, off by default until it is finished: open an umbrella held as a weapon with F7 (see
-	// core/umbrella.cc).
-	bool mUmbrellaPrototype = false;
+	// Open and close an umbrella held as a weapon by holding E (see core/umbrella.cc).
+	bool mUmbrella = true;
 
 	bool mLogging = true;
 
