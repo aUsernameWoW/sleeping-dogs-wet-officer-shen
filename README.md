@@ -19,11 +19,9 @@
 - 下雨时，衣服和皮肤会慢慢变湿，颜色变深、开始反光；雨停后大约一分钟内逐渐变干；
 - 从水里爬上岸时，Wei 浑身湿透，然后同样慢慢变干；
 - 上岸后的二十几秒里，走过的地方会留下湿脚印；
-- 下雨天路人受了惊吓会扔下手里的伞，捡起来以后**长按 E** 就能撑开，再长按 E 收起。撑着伞只能走路；
-  撑着伞在车门边、出租车旁或能搭话的人面前按 E，Wei 会先收伞再上车（打车、搭话）；下水时伞会自动收起。
+- 下雨天路人受了惊吓会扔下手里的伞，捡起来以后**长按 E** 就能撑开，再长按 E 收起。撑着伞只能走路；撑着伞在车门边、出租车旁或能搭话的人面前按 E，Wei 会先收伞再上车（打车、搭话）；下水时伞会自动收起。
 
-湿身效果游戏本来就设计了，但在终极版里，大部分衣服和皮肤都看不出湿，游泳后也完全不湿。这个 mod 把它修好了。
-游戏的其他画面不受影响。
+湿身效果游戏本来就设计了，但在终极版里，大部分衣服和皮肤都看不出湿，游泳后也完全不湿。这个 mod 把它修好了。游戏的其他画面不受影响。
 
 状态：**早期版本**。在作者的电脑上测试正常。
 
@@ -55,8 +53,7 @@ plugins\
 
 1. 双击打开下载的 `SDWet.zip`。
 2. 选中里面的 `dinput8.dll` 和 `plugins` 文件夹，一起拖进游戏文件夹。
-3. 如果 Windows 弹出「替换或跳过文件」，说明游戏文件夹里已经有 `dinput8.dll` 了（你以前装过别的 mod，
-   加载器已经在了），选「跳过该文件」。已有的 `plugins` 文件夹会自动合并，不用管。
+3. 如果 Windows 弹出「替换或跳过文件」，说明游戏文件夹里已经有 `dinput8.dll` 了（你以前装过别的 mod，加载器已经在了），选「跳过该文件」。已有的 `plugins` 文件夹会自动合并，不用管。
 
 放好后，游戏文件夹里应该是这样（只列出相关的部分）：
 
@@ -80,8 +77,7 @@ SleepingDogsDefinitiveEdition\
 
 **觉得太亮或者不够湿**
 
-用记事本打开 `plugins\SDWet.ini`，改 `Shine`（湿了以后的反光强度，默认 0.05，0 就是游戏原样），保存后重启
-游戏。每一项都有中文说明。
+用记事本打开 `plugins\SDWet.ini`，改 `Shine`（湿了以后的反光强度，默认 0.05，0 就是游戏原样），保存后重启游戏。每一项都有中文说明。
 
 **不想要湿脚印，或者想让它留久一点**
 
@@ -93,19 +89,15 @@ SleepingDogsDefinitiveEdition\
 
 **`plugins` 里没有 `SDWet.log`**
 
-说明 mod 没被加载：检查 `dinput8.dll` 是否和 `sdhdship.exe` 在同一层，杀毒软件有没有删掉它（ASI 加载器偶尔
-会被误报，可以从隔离区还原并把游戏文件夹加入排除项）。如果第 3 步跳过了原有的 `dinput8.dll`，那个文件可能
-不是 ASI 加载器，备份后换成压缩包里的。
+说明 mod 没被加载：检查 `dinput8.dll` 是否和 `sdhdship.exe` 在同一层，杀毒软件有没有删掉它（ASI 加载器偶尔会被误报，可以从隔离区还原并把游戏文件夹加入排除项）。如果第 3 步跳过了原有的 `dinput8.dll`，那个文件可能不是 ASI 加载器，备份后换成压缩包里的。
 
 **更新**
 
-下载新的 `SDWet.zip`，只把里面的 `plugins` 文件夹拖进游戏文件夹，Windows 询问时选「替换目标中的文件」。
-`SDWet.ini` 不在压缩包里，你的设置会保留。
+下载新的 `SDWet.zip`，只把里面的 `plugins` 文件夹拖进游戏文件夹，Windows 询问时选「替换目标中的文件」。`SDWet.ini` 不在压缩包里，你的设置会保留。
 
 **卸载**
 
-删掉 `plugins` 里的 `SDWet.asi`、`SDWet.ini` 和 `SDWet.log`。如果 `plugins` 里已经没有其他 `.asi` 文件了，
-`dinput8.dll` 也可以删掉。
+删掉 `plugins` 里的 `SDWet.asi`、`SDWet.ini` 和 `SDWet.log`。如果 `plugins` 里已经没有其他 `.asi` 文件了，`dinput8.dll` 也可以删掉。
 
 **遇到问题怎么反馈**
 
@@ -118,20 +110,17 @@ SleepingDogsDefinitiveEdition\
 
 **研究资料**
 
-- [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Sleeping_Dogs:_Definitive_Edition)：上面记录了终极版的湿身问题
-  （“Wetness Bug on default and many other outfits”）。
+- [PCGamingWiki](https://www.pcgamingwiki.com/wiki/Sleeping_Dogs:_Definitive_Edition)：上面记录了终极版的湿身问题（“Wetness Bug on default and many other outfits”）。
 - [SDmodding](https://github.com/SDmodding)，几乎全部出自 [sneakyevil](https://github.com/sneakyevil) 一人之手。这个 mod 用到了：
   - SDmodding 随 [SDK](https://github.com/SDmodding/SDK) 发布的 [Visual Studio 2022 项目模板](https://github.com/SDmodding/SDK/releases/tag/vs2022)：这个 mod 的 Visual Studio 工程源自这个模板，编译设置和以 `dllmain.cc` 为起点的源文件结构都来自它；
   - SDmodding 分享的游戏 v1.0 版 exe 和调试符号（PDB，Steam 首发版自带）：函数特征码和游戏的数据结构都是从这里查到的；
   - [SDK](https://github.com/SDmodding/SDK) 和 [TheoryEngine](https://github.com/SDmodding/TheoryEngine)：材质与着色器资源的结构，以及游戏的字符串哈希；SDK 里的游戏输入（E 键对应的 `ActionDef_Action` 及其数据结构）和目标类型列表：长按 E 撑伞；
   - [Files](https://github.com/SDmodding/Files) 里导出的动作树（ActionNodes）：撑伞；
-  - [BigFileSystem](https://github.com/SDmodding/BigFileSystem)、[TheoryEngine](https://github.com/SDmodding/TheoryEngine)，以及 sneakyevil 的 [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) 和 [Ekey](https://github.com/Ekey) 的 SDDEUnpacker 里的文件名列表：
-    读取游戏资源包（`.big`）的工具是照着它们写的，研究脚本（`research/`）用它读取游戏的材质、着色器和贴图。
+  - [BigFileSystem](https://github.com/SDmodding/BigFileSystem)、[TheoryEngine](https://github.com/SDmodding/TheoryEngine)，以及 sneakyevil 的 [SD-BigFileExplorer](https://github.com/sneakyevil/SD-BigFileExplorer) 和 [Ekey](https://github.com/Ekey) 的 SDDEUnpacker 里的文件名列表：读取游戏资源包（`.big`）的工具是照着它们写的，研究脚本（`research/`）用它读取游戏的材质、着色器和贴图。
 
 **mod 里包含的代码**（许可证全文见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)）
 
-- [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)（ThirteenAG）：压缩包里的 `dinput8.dll`，让游戏加载 mod。它本身还包含 MinHook、
-  [miniz](https://github.com/richgel999/miniz)（Rich Geldreich 等）和 [praydog](https://github.com/praydog) 的 FunctionHookMinHook。
+- [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader)（ThirteenAG）：压缩包里的 `dinput8.dll`，让游戏加载 mod。它本身还包含 MinHook、[miniz](https://github.com/richgel999/miniz)（Rich Geldreich 等）和 [praydog](https://github.com/praydog) 的 FunctionHookMinHook。
 - [MinHook](https://github.com/TsudaKageyu/minhook)（Tsuda Kageyu，内含 Vyacheslav Patkov 的 Hacker Disassembler Engine）：mod 靠它接入游戏。
 
 **工具**
@@ -144,8 +133,7 @@ SleepingDogsDefinitiveEdition\
 
 **游戏与商标**
 
-《热血无赖：终极版》（Sleeping Dogs: Definitive Edition）由 United Front Games 开发、Square Enix 发行，
-游戏及其内容的版权归 Square Enix 所有。
+《热血无赖：终极版》（Sleeping Dogs: Definitive Edition）由 United Front Games 开发、Square Enix 发行，游戏及其内容的版权归 Square Enix 所有。
 
 与 Square Enix、United Front Games 均无关联。
 
