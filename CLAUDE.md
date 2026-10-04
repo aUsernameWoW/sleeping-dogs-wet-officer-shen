@@ -9,8 +9,8 @@ Status (2026-09-28): both fixes verified in game by the user ("working as expect
 over ~60 s after it stops; wet right after climbing out of the water, drying the same way. Wet footprints
 verified (at night). The umbrella works as designed after 4 test rounds (opening, walking only,
 rain, indoor/outdoor sprint) with F7; since 2026-10-04 holding E opens/closes it and it is on by default
-(`[Umbrella] Enabled`), tested once (works; E at a car or taxi with it open still reached the game, fixed the same
-day, untested). README.md (players) and ADVANCED.md are written; README's download link
+(`[Umbrella] Enabled`); with it open, E at a car, taxi or talk prompt closes it first (build-13, works); instant
+close at taxis and in the water written the same day, untested. README.md (players) and ADVANCED.md are written; README's download link
 (`releases/latest/download/SDWet.zip`) works once a CI prerelease is promoted to a full release. See
 **Handoff** at the end for what's left.
 
@@ -163,7 +163,8 @@ didn't want to edit them; hold E or F7 open/close, F9 dump):
   tree waits at a prompt node, `InteractHandler\Prompts\Vehicle\Default\Available`, `...\Vehicle\Boat\Available`,
   `...\Taxi\Available` or `...\Socialize\Available` (found by pointer: a controller of the AI tree, or of its
   running SpawnTasks, list `m_RunningSpawnTasksTmp` +0x50, list node +0x28 in the SpawnTask, its controller +0x120,
-  whose `m_currentNode` is one of them), starts Close_Umbrella at once. When the prop is folded (≥ 2.2 s, prop not
+  whose `m_currentNode` is one of them), starts Close_Umbrella at once (at a taxi it's closed at once instead,
+  `CloseNow`, and the press goes over the next frame: taxis drive off). When the prop is folded (≥ 2.2 s, prop not
   Opening/Opened; Close_Umbrella itself runs ~3 s) and the same prompt is still up, the press is handed to the game
   as a fresh one (mOnSeconds from 0: charge 0 = ARS_ONESHOT on the first frame): as long as the player held it
   (≥ 0.1 s; ≥ 0.6 s for a taxi hold ≥ 1/3 s), or until they let go if still held. Otherwise dropped and logged.
@@ -214,10 +215,15 @@ was opened indoors (force walk, above). 4. script hooks: "working as expected"; 
 Hold E, 2026-10-04 (second machine, build-12): opening/closing by holding E works, no unexpected
 refusals; but with it open, E still got Wei into a car (umbrella vanished, a closed one came back after getting
 out) and a taxi (teleported in, umbrella open through the roof), and talking to a car park valet took the umbrella
-away ("无伤大雅"). Fixed as above (input hidden at the source, close then hand the press over); untested in game:
-check `E pressed at the ... prompt`, `E goes to the game ...` / `... dropped`, and whether the valet still takes it.
-Not done: closing for water/cutscenes (dropping the weapon ends it), staying dry under it (the look's rain
-wetness keeps rising), gamepad brisk walk.
+away ("无伤大雅"). Fixed as above (input hidden at the source, close then hand the press over) in build-13:
+"挺好的". Its round found: the valet still takes the umbrella after it's closed (the game's own; the user: leave
+it); a taxi may drive off during Close_Umbrella (→ at a taxi prompt `CloseNow`: the prop jumps to its `Closed`
+node, the layer stops, the press goes over the next frame); falling into the water with it open, Wei swam with it
+open and couldn't swim fast (→ `CloseNow` when his tree plays `Swimming`, the only node of that name:
+`GlobalActions\Swimming`, entered from `StartSwiming\Enter` or a boat jump's fall). Both untested: check
+`closing it at once` and `Wei is in the water`.
+Not done: closing for cutscenes (dropping the weapon ends it), staying dry under it (the look's rain wetness keeps
+rising), gamepad brisk walk.
 
 Action tree runtime (from the PDB; layouts in umbrella.cc's header comment):
 - Each node path segment is `qStringHashUpper32`; `ActionNode::Find(ActionPath*, root)` walks from
@@ -291,7 +297,8 @@ Night scenes show the effect weakly (few highlights); judge `Shine`/`Gloss` in d
 ## Handoff: what's left (as of 2026-10-04)
 
 - **Umbrella, next**: hold E works (2026-10-04, `[Umbrella] Enabled`, in README.md); close-then-get-in at car,
-  taxi and talk prompts is written but untested; then auto-close cases (water, cutscenes), staying dry under it,
+  taxi and talk prompts works (build-13); instant close at taxis and in the water is written but untested; then
+  auto-close for cutscenes, staying dry under it,
   gamepad brisk walk. Still to do
   once it settles: move the action tree runtime and umbrella details into `docs/action-trees.md` (like SDRadio's
   `docs/radio-internals.md`) and keep a summary here (agreed with the user).

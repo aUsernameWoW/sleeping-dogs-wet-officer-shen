@@ -1005,6 +1005,17 @@ namespace umbrella
 		}
 	}
 
+	// Closed at once, without Close_Umbrella: the prop jumps to its Closed node (no rain check may reopen it: the
+	// answer goes to "closed" first), Wei's arm drops the layer's animation, the restrictions go.
+	static void CloseNow(const Prop& prop, const char* why, bool done)
+	{
+		gWantOpen = false;
+		if (prop.mSim && prop.Current() != gNodes[kPropClosed].mNode) {
+			PlayOnProp(prop, kPropClosed);
+		}
+		Stop(why, done);
+	}
+
 	static void Step(uint8_t* playerAtc, float delta);
 
 	static void Tick(uint8_t* playerAtc, float delta)
@@ -1040,9 +1051,11 @@ namespace umbrella
 
 		// Holding E opens or closes it, once per press, unless the game has a use for that E. With it open (E is
 		// kept from the game, so the PlayerAI tree still waits at its prompt), a press at a car, a taxi or someone
-		// to talk to closes it at once and goes to the game afterwards.
+		// to talk to closes it and goes to the game afterwards: after Close_Umbrella, or at once for a taxi, which
+		// may drive off during the animation (2026-10-04 test).
 		bool holdToggle = false;
 		bool closeForPrompt = false;
+		bool closeNowForPrompt = false;
 		if (!ActionHeld()) {
 			gHold = {};
 		}
@@ -1061,9 +1074,10 @@ namespace umbrella
 					gHold.mDone = true;
 					gReplay = {};
 					gReplay.mPrompt = prompt;
-					closeForPrompt = gState != State::Closing;
+					closeNowForPrompt = prompt == kPromptTaxi && hasUmbrella;
+					closeForPrompt = !closeNowForPrompt && gState != State::Closing;
 					LOG("umbrella: E pressed at the %s prompt with the umbrella open: %s, then the press goes to the game", gNodes[prompt].mName,
-						closeForPrompt ? "closing it first" : "it's closing");
+						closeNowForPrompt ? "closing it at once" : closeForPrompt ? "closing it first" : "it's closing");
 				}
 			}
 			if (!gHold.mDone) {
@@ -1102,6 +1116,10 @@ namespace umbrella
 				gPropChecked = false;
 			}
 		}
+		if (closeNowForPrompt) {
+			CloseNow(prop, "at once for the taxi", true);
+			StartReplay(player);
+		}
 		const bool wantOpen = gState == State::Opening || gState == State::Open;
 		if (gWantOpen.exchange(wantOpen) != wantOpen) {
 			gRainAnswers = 3; // log the next two answers
@@ -1119,6 +1137,14 @@ namespace umbrella
 		}
 		if (!hasUmbrella) {
 			Stop("no umbrella in hand any more");
+			return;
+		}
+		// Swimming with it open looked odd and kept the walk-only rules (no fast swim): it closes as Wei goes in
+		// (his tree plays GlobalActions\Swimming\..., from StartSwiming\Enter on; E stays the game's there, as he
+		// isn't in Locomotion).
+		if (Playing(playerAtc + 0xC0, "Swimming")) {
+			LOG("umbrella: Wei is in the water (his node %08X)", NodeId(Read<void*>(playerAtc, 0xC0 + 0x10)));
+			CloseNow(prop, "in the water", false);
 			return;
 		}
 		if (gState == State::Open && propNode && (propNode == gNodes[kPropClosing].mNode || propNode == gNodes[kPropClosed].mNode)) {
