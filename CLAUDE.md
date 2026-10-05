@@ -108,6 +108,13 @@ leaves prints after a swim. An umbrella Wei can open → `core/umbrella.cc` (see
   counts. Any soaking track counts, so a cutscene that soaks Wei would give prints after it too (untested).
 - `core/umbrella.cc`: the umbrella, below. Its signatures are passed to `scan::FindUnique` literally so
   `tools\pdb.ps1 verify` checks them; offsets it relies on inside functions are checked with `scan::Matches`.
+- `core/scan.cc` (since 2026-10-05, from SDTaxi): another mod may have hooked a function before we scan (plugins
+  load in name order). A log from a player with other mods showed `ActionTreeComponent::update`,
+  `ReadControllerInputTask::Update` and `AIActionTreeComponent::OnUpdate` at 0 matches (each unique in both exe
+  files), so the umbrella was off. When a pattern isn't found, `FindUnique` takes a `jmp rel32` out of the exe over
+  its first 5 bytes (MinHook's) instead and logs `(it starts with a jump: hooked by another mod)`; hooking it again
+  chains. A jump into the exe doesn't count (another function's tail jump before the same bytes). If that fails too
+  and the rest of the pattern matches once, it logs the first 16 bytes there (some other kind of patch).
 - `core/crash.cc` (copied from SDRadio): with `Logging`, a vectored handler logs the first access violations with
   a stack and writes `SDWet-crash-<n>.dmp`. The game's exit crash (execute at `...488C`, see the workspace
   CLAUDE.md) shows up there on every exit.
@@ -254,6 +261,8 @@ Action tree runtime (from the PDB; layouts in umbrella.cc's header comment):
 - `load_test`: loads the .asi outside the game: default ini, and every feature reports its functions missing.
 - `umbrella_load_test`: an old ini (`[Umbrella] Prototype = 0`): still on, functions reported missing.
 - `umbrella_off_test`: `[Umbrella] Enabled = 0`: off, nothing looked for.
+- `scan_test` (from SDTaxi): a pattern in the test's own .text is found plain, and after a hook jump over its start,
+  not at a decoy tail jump, and not after some other patch over its start.
 
 ## CI (`.github\`, copied from SDAtmos 2026-09-28)
 
