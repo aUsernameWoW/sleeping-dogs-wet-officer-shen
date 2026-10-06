@@ -98,6 +98,8 @@ bug，本 mod 分别修复：
 
 `main` 上每次提交都会自动编译、测试并发布为预发布版 `build-<N>`（没有在游戏里测过）。在游戏里验证过的构建会被转为正式版；README 里的下载链接指向最新的正式版。
 
+2026 年 10 月以后的构建里，`SDWet.zip`、`SDWet.asi`、`SDWet.pdb` 都附有 GitHub 签名的[构建来源证明](https://docs.github.com/zh/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)（artifact attestation）。装了 [GitHub CLI](https://cli.github.com/) 的话，可以用 `gh attestation verify SDWet.zip -R aUsernameWoW/sleeping-dogs-wet-officer-shen` 确认下载到的文件确实是这个仓库的 CI 编译的，以及来自哪个提交。
+
 已经有 ASI 加载器（不论叫 `dinput8.dll`、`winmm.dll` 还是别的名字）时，只需要把 `SDWet.asi` 放进它加载插件的目录（通常是 `plugins\`）。`SDWet.ini` 和 `SDWet.log` 写在 `.asi` 旁边。
 
 ### 编译与测试
@@ -293,6 +295,11 @@ Every version on [Releases](https://github.com/aUsernameWoW/sleeping-dogs-wet-of
 
 Every commit on `main` is built, tested and published as a prerelease `build-<N>` (not tested in game).
 Builds verified in game are promoted to full releases; the README's download link points to the newest one.
+
+Builds since October 2026 carry a signed [build provenance attestation](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations) for the
+`.zip`, `.asi` and `.pdb`: with the [GitHub CLI](https://cli.github.com/),
+`gh attestation verify SDWet.zip -R aUsernameWoW/sleeping-dogs-wet-officer-shen` checks that a downloaded file was built by
+this repository's CI, and from which commit.
 
 If you already have an ASI loader (whether it's called `dinput8.dll`, `winmm.dll` or something else), just put
 `SDWet.asi` where it loads plugins from (usually `plugins\`). `SDWet.ini` and `SDWet.log` are written next to
